@@ -15,8 +15,8 @@
 //
 // server6:
 //   - plugins:
-//     - pxeboot: tftp://[2001:db8::dead]/pxe-file http://[2001:db8:a::1]/ipxe-file
-//
+//   - pxeboot: tftp://[2001:db8::dead]/pxe-file http://[2001:db8:a::1]/ipxe-file
+
 package pxeboot
 
 import (
