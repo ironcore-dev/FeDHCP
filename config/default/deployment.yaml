@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fedhcp
+  labels:
+    app: fedhcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fedhcp
+  template:
+    metadata:
+      labels:
+        app: fedhcp
+    spec:
+      serviceAccountName: fedhcp
+      volumes:
+        - name: config
+          configMap:
+            name: config
+            defaultMode: 420
+      containers:
+      - name: fedhcp
+        image: fedhcp:latest
+        imagePullPolicy: Always
+        volumeMounts:
+            - name: config
+              mountPath: /coredhcp
+        ports:
+          - name: dhcp6
+            containerPort: 547
+            protocol: UDP

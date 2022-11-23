@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dhcpv6
+spec:
+  ports:
+    - name: dhcp6
+      protocol: UDP
+      port: 547
+      targetPort: 547
+  selector:
+    app: fedhcp
+  type: ClusterIP
+  ipFamilies:
+    - IPv6
