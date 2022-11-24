@@ -2,6 +2,10 @@ package onmetal
 
 import (
 	"context"
+	"net"
+	"reflect"
+	"strings"
+
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	inventoryv1alpha1 "github.com/onmetal/metal-api/apis/inventory/v1alpha1"
 	"github.com/pkg/errors"
@@ -9,11 +13,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"net"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"strings"
 )
 
 const (
@@ -28,11 +29,11 @@ type K8sClient struct {
 
 func NewK8sClient(namespace string, subnet string) K8sClient {
 	if err := inventoryv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types inventory to client scheme: %s", err)
+		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
 	}
 
 	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types inventory to client scheme: %s", err)
+		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
 	}
 
 	cl, err := client.New(config.GetConfigOrDie(), client.Options{})
