@@ -3,6 +3,10 @@ package onmetal
 import (
 	"context"
 	"encoding/hex"
+	"net"
+	"reflect"
+	"strings"
+
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	inventoryv1alpha1 "github.com/onmetal/metal-api/apis/inventory/v1alpha1"
 	"github.com/pkg/errors"
@@ -10,11 +14,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"net"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"strings"
 )
 
 const (
@@ -29,11 +30,11 @@ type K8sClient struct {
 
 func NewK8sClient(namespace string, subnet string) K8sClient {
 	if err := inventoryv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types inventory to client scheme: %s", err)
+		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
 	}
 
 	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types inventory to client scheme: %s", err)
+		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
 	}
 
 	cl, err := client.New(config.GetConfigOrDie(), client.Options{})
@@ -57,6 +58,9 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 		return err
 	}
 
+	// a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and
+	// must start and end with an alphanumeric character.
+	// 2001:abcd:abcd::1 will become 2001-abcd-abcd-0000-0000-0000-0000-00001
 	longIpv6 := getLongIPv6(ipaddr)
 	name := longIpv6 + "-" + origin
 	ipamIP := &ipamv1alpha1.IP{
@@ -64,7 +68,7 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 			Name:      name,
 			Namespace: k.Namespace,
 			Labels: map[string]string{
-				"ip":     strings.ReplaceAll(longIpv6, ":", "_"),
+				"ip":     longIpv6,
 				"mac":    macKey,
 				"origin": origin,
 			},
@@ -117,7 +121,8 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 func getLongIPv6(ip net.IP) string {
 	dst := make([]byte, hex.EncodedLen(len(ip)))
 	_ = hex.Encode(dst, ip)
-	return string(dst[0:4]) + ":" +
+
+	longIpv6 := string(dst[0:4]) + ":" +
 		string(dst[4:8]) + ":" +
 		string(dst[8:12]) + ":" +
 		string(dst[12:16]) + ":" +
@@ -125,4 +130,6 @@ func getLongIPv6(ip net.IP) string {
 		string(dst[20:24]) + ":" +
 		string(dst[24:28]) + ":" +
 		string(dst[28:])
+
+	return strings.ReplaceAll(longIpv6, ":", "-")
 }

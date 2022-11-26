@@ -67,3 +67,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           target: ${{ matrix.image.target }}
+          secrets: |
+            "github_pat=${{ secrets.BOT_PAT }}"
