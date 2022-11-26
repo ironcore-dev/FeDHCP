@@ -2,6 +2,7 @@ package onmetal
 
 import (
 	"context"
+	"encoding/hex"
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
 	inventoryv1alpha1 "github.com/onmetal/metal-api/apis/inventory/v1alpha1"
 	"github.com/pkg/errors"
@@ -49,7 +50,6 @@ func NewK8sClient(namespace string, subnet string) K8sClient {
 func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 	ctx := context.Background()
 	macKey := strings.ReplaceAll(mac.String(), ":", "")
-	name := macKey + "-" + origin
 
 	ip, err := ipamv1alpha1.IPAddrFromString(ipaddr.String())
 	if err != nil {
@@ -57,12 +57,14 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 		return err
 	}
 
+	longIpv6 := getLongIPv6(ipaddr)
+	name := longIpv6 + "-" + origin
 	ipamIP := &ipamv1alpha1.IP{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: k.Namespace,
 			Labels: map[string]string{
-				"ip":     strings.ReplaceAll(ipaddr.String(), ":", "_"),
+				"ip":     strings.ReplaceAll(longIpv6, ":", "_"),
 				"mac":    macKey,
 				"origin": origin,
 			},
@@ -110,4 +112,17 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 	}
 
 	return nil
+}
+
+func getLongIPv6(ip net.IP) string {
+	dst := make([]byte, hex.EncodedLen(len(ip)))
+	_ = hex.Encode(dst, ip)
+	return string(dst[0:4]) + ":" +
+		string(dst[4:8]) + ":" +
+		string(dst[8:12]) + ":" +
+		string(dst[12:16]) + ":" +
+		string(dst[16:20]) + ":" +
+		string(dst[20:24]) + ":" +
+		string(dst[24:28]) + ":" +
+		string(dst[28:])
 }
