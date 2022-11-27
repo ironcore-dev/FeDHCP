@@ -125,7 +125,7 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 				return err
 			}
 
-			k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Reason", "Deleted old IPAM IP")
+			k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
 			createIpamIP = true
 		}
 	}
@@ -137,7 +137,7 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 			return err
 		}
 
-		k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Reason", "Created IPAM IP")
+		k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
 	}
 
 	return nil
