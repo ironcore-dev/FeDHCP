@@ -9,3 +9,9 @@ rules:
   - ips
   verbs:
   - '*'
+- apiGroups:
+  - ''
+  resources:
+  - events
+  verbs:
+  - '*'

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"net"
+	"os"
 	"reflect"
 	"strings"
 
@@ -14,6 +15,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
@@ -23,9 +26,10 @@ const (
 )
 
 type K8sClient struct {
-	Client    client.Client
-	Namespace string
-	Subnet    string
+	Client        client.Client
+	Namespace     string
+	Subnet        string
+	EventRecorder record.EventRecorder
 }
 
 func NewK8sClient(namespace string, subnet string) K8sClient {
@@ -37,14 +41,32 @@ func NewK8sClient(namespace string, subnet string) K8sClient {
 		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
 	}
 
-	cl, err := client.New(config.GetConfigOrDie(), client.Options{})
+	cfg := config.GetConfigOrDie()
+	cl, err := client.New(cfg, client.Options{})
 	if err != nil {
-		log.Fatal("Failed to create a client: ", err)
+		log.Fatal("Failed to create a controller runtime client: ", err)
 	}
+
+	corev1Client, err := corev1client.NewForConfig(cfg)
+	if err != nil {
+		log.Fatal("Failed to create a core client: ", err)
+	}
+
+	broadcaster := record.NewBroadcaster()
+
+	// Leader id, needs to be unique
+	id, err := os.Hostname()
+	if err != nil {
+		log.Fatal("Failed to get hostname: ", err)
+	}
+	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: id})
+	broadcaster.StartRecordingToSink(&corev1client.EventSinkImpl{Interface: corev1Client.Events("")})
+
 	return K8sClient{
-		Client:    cl,
-		Namespace: namespace,
-		Subnet:    subnet,
+		Client:        cl,
+		Namespace:     namespace,
+		Subnet:        subnet,
+		EventRecorder: recorder,
 	}
 }
 
@@ -103,6 +125,7 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 				return err
 			}
 
+			k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Reason", "Deleted old IPAM IP")
 			createIpamIP = true
 		}
 	}
@@ -113,6 +136,8 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 			err = errors.Wrapf(err, "Failed to create IP %s in namespace %s", ipamIP.Name, ipamIP.Namespace)
 			return err
 		}
+
+		k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Reason", "Created IPAM IP")
 	}
 
 	return nil
