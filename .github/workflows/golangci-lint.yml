@@ -14,6 +14,9 @@ jobs:
         with:
           go-version: '1.19'
       - uses: actions/checkout@v3
+      - run: ./hack/setup-git-redirect.sh
+        env:
+          GITHUB_PAT: ${{ secrets.BOT_PAT }}
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:

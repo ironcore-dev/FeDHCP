@@ -1,3 +1,13 @@
+# Image URL to use all building/pushing image targets
+IMG ?= controller:latest
+
+GITHUB_PAT_PATH ?=
+ifeq (,$(GITHUB_PAT_PATH))
+GITHUB_PAT_MOUNT ?=
+else
+GITHUB_PAT_MOUNT ?= --secret id=github_pat,src=$(GITHUB_PAT_PATH)
+endif
+
 .PHONY: target/fedhcp
 
 all: target/fedhcp
@@ -12,8 +22,13 @@ clean:
 run: all
 	sudo ./target/fedhcp
 
-docker:
-	docker build -t onmetal/fedhcp .
+.PHONY: docker-build
+docker-build: ## Build docker image with the manager.
+	docker build -t ${IMG} $(GITHUB_PAT_MOUNT) .
+
+.PHONY: docker-push
+docker-push: ## Push docker image with the manager.
+	docker push ${IMG}
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.

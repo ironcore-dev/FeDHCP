@@ -5,6 +5,7 @@
 package onmetal
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+
+	"github.com/mdlayher/netx/eui64"
 )
 
 var log = logger.GetLogger("plugins/onmetal")
@@ -21,7 +24,26 @@ var Plugin = plugins.Plugin{
 	Setup6: setup6,
 }
 
+var (
+	k8sClient K8sClient
+)
+
+func parseArgs(args ...string) (string, string, error) {
+	if len(args) != 2 {
+		return "", "", fmt.Errorf("exactly two arguments must be passed to onmetal plugin, got %d", len(args))
+	}
+
+	namespace := args[0]
+	subnet := args[1]
+	return namespace, subnet, nil
+}
+
 func setup6(args ...string) (handler.Handler6, error) {
+	namespace, subnet, err := parseArgs(args...)
+	if err != nil {
+		return nil, err
+	}
+	k8sClient = NewK8sClient(namespace, subnet)
 	log.Printf("loaded plugin for DHCPv6.")
 	return handler6, nil
 }
@@ -36,13 +58,23 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	relayMsg := req.(*dhcpv6.RelayMessage)
 
+	// Retrieve IPv6 prefix and MAC address from IPv6 address
+	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	if err != nil {
+		log.Errorf("Could not parse peer address: %s", err)
+		return nil, true
+	}
+
 	ipaddr := make(net.IP, len(relayMsg.LinkAddr))
 	copy(ipaddr, relayMsg.LinkAddr)
 	ipaddr[len(ipaddr)-1] += 1
 
-	//	ipaddr := net.ParseIP("2a10:afc0:e013:1004::ffff:5:1")
-
-	log.Infof("generated IP address %s", ipaddr)
+	log.Infof("Generated IP address %s for mac %s", ipaddr.String(), mac.String())
+	err = k8sClient.createIpamIP(ipaddr, mac)
+	if err != nil {
+		log.Errorf("Could not create IPAM IP: %s", err)
+		return nil, true
+	}
 
 	m, err := req.GetInnerMessage()
 	if err != nil {
@@ -60,8 +92,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
 				IPv6Addr:          ipaddr,
-				PreferredLifetime: 30 * time.Second,
-				ValidLifetime:     30 * time.Second,
+				PreferredLifetime: 24 * time.Hour,
+				ValidLifetime:     24 * time.Hour,
 			},
 		}},
 	})
