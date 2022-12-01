@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20220602152301-a2552c5c1b7a
-	github.com/google/addlicense v1.0.0
+	github.com/google/addlicense v1.1.0
 	github.com/insomniacslk/dhcp v0.0.0-20211209223715-7d93572ebe8e
 	github.com/mdlayher/netx v0.0.0-20220422152302-c711c2f8512f
 	github.com/onmetal/ipam v0.0.14
