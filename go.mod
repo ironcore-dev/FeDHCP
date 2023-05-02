@@ -1,6 +1,6 @@
 module github.com/onmetal/fedhcp
 
-go 1.19
+go 1.20
 
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20220602152301-a2552c5c1b7a
