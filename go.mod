@@ -1,6 +1,6 @@
 module github.com/onmetal/fedhcp
 
-go 1.19
+go 1.20
 
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20220602152301-a2552c5c1b7a
@@ -68,7 +68,6 @@ require (
 	github.com/subosito/gotenv v1.4.1 // indirect
 	github.com/u-root/uio v0.0.0-20220204230159-dac05f7d2cb4 // indirect
 	go4.org/intern v0.0.0-20220617035311-6925f38cc365 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230209150437-ee73d164e760 // indirect
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.4.0 // indirect
