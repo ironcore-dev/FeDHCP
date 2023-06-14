@@ -5,16 +5,16 @@ go 1.20
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20220602152301-a2552c5c1b7a
 	github.com/google/addlicense v1.1.1
-	github.com/insomniacslk/dhcp v0.0.0-20230612134759-b20c9ba983df
+	github.com/insomniacslk/dhcp v0.0.0-20211209223715-7d93572ebe8e
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
 	github.com/onmetal/ipam v0.0.21
 	github.com/onmetal/metal-api v0.9.2
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.6-0.20201009195203-85dd5c8bc61c
-	k8s.io/api v0.27.2
-	k8s.io/apimachinery v0.27.2
-	k8s.io/client-go v0.27.2
+	k8s.io/api v0.28.0-alpha.2
+	k8s.io/apimachinery v0.28.0-alpha.2
+	k8s.io/client-go v0.28.0-alpha.2
 	sigs.k8s.io/controller-runtime v0.15.0
 )
 
