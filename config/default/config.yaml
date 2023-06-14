@@ -10,6 +10,7 @@ data:
 
       plugins:
           - server_id: LL 00:de:ad:be:ef:00
-          - onmetal: metal-api-system dhcp
+          - ipam: metal-api-system dhcp
+          - onmetal:
           - dns: 2001:4860:4860::6464 2001:4860:4860::64
           - pxeboot: tftp://[2001:db8::1]/ipxe/x86_64/ipxe http://[2001:db8::1]/ipxe/boot6
