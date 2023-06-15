@@ -6,6 +6,7 @@ package onmetal
 
 import (
 	"net"
+	"strings"
 	"time"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -27,7 +28,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Printf("Received DHCPv6 request: %s", req.Summary())
+	log.Printf("Received DHCPv6 request: %s", strings.Replace(req.Summary(), "\n", " ", -1))
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -62,7 +63,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}},
 	})
 
-	log.Printf("Sent DHCPv6 response:\n%s", resp.Summary())
+	log.Printf("Sent DHCPv6 response: %s", strings.Replace(resp.Summary(), "\n", " ", -1))
 
 	return resp, false
 }
