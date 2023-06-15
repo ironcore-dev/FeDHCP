@@ -2,7 +2,7 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-package onmetal
+package ipam
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ import (
 	"github.com/mdlayher/netx/eui64"
 )
 
-var log = logger.GetLogger("plugins/onmetal")
+var log = logger.GetLogger("plugins/ipam")
 
 var Plugin = plugins.Plugin{
 	Name:   "ipam",
@@ -29,7 +29,7 @@ var (
 
 func parseArgs(args ...string) (string, string, error) {
 	if len(args) != 2 {
-		return "", "", fmt.Errorf("exactly two arguments must be passed to onmetal plugin, got %d", len(args))
+		return "", "", fmt.Errorf("exactly two arguments must be passed to ipam plugin, got %d", len(args))
 	}
 
 	namespace := args[0]

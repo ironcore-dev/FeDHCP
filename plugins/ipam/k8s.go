@@ -1,4 +1,4 @@
-package onmetal
+package ipam
 
 import (
 	"context"
