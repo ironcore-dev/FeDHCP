@@ -75,5 +75,5 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	return nil, false
+	return resp, false
 }
