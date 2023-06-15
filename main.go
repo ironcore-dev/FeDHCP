@@ -21,6 +21,7 @@ import (
 	pl_mtu "github.com/coredhcp/coredhcp/plugins/mtu"
 	pl_searchdomains "github.com/coredhcp/coredhcp/plugins/searchdomains"
 	pl_serverid "github.com/coredhcp/coredhcp/plugins/serverid"
+	pl_ipam "github.com/onmetal/fedhcp/plugins/ipam"
 	pl_onmetal "github.com/onmetal/fedhcp/plugins/onmetal"
 	pl_pxeboot "github.com/onmetal/fedhcp/plugins/pxeboot"
 
@@ -60,6 +61,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&pl_pxeboot.Plugin,
 	&pl_searchdomains.Plugin,
 	&pl_serverid.Plugin,
+	&pl_ipam.Plugin,
 }
 
 func main() {
