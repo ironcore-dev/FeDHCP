@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	ipamv1alpha1 "github.com/onmetal/ipam/api/v1alpha1"
-	inventoryv1alpha1 "github.com/onmetal/metal-api/apis/inventory/v1alpha1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,12 +32,8 @@ type K8sClient struct {
 }
 
 func NewK8sClient(namespace string, subnet string) K8sClient {
-	if err := inventoryv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
-	}
-
 	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types inventory to client scheme: ", err)
+		log.Fatal("Unable to add registered types ipam to client scheme: ", err)
 	}
 
 	cfg := config.GetConfigOrDie()
