@@ -23,6 +23,7 @@ import (
 	pl_serverid "github.com/coredhcp/coredhcp/plugins/serverid"
 	pl_ipam "github.com/onmetal/fedhcp/plugins/ipam"
 	pl_onmetal "github.com/onmetal/fedhcp/plugins/onmetal"
+	pl_bluefield "github.com/onmetal/fedhcp/plugins/bluefield"
 	pl_pxeboot "github.com/onmetal/fedhcp/plugins/pxeboot"
 
 	"github.com/sirupsen/logrus"
@@ -58,6 +59,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&pl_dns.Plugin,
 	&pl_mtu.Plugin,
 	&pl_onmetal.Plugin,
+	&pl_bluefield.Plugin,
 	&pl_pxeboot.Plugin,
 	&pl_searchdomains.Plugin,
 	&pl_serverid.Plugin,
