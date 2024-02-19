@@ -33,7 +33,7 @@ func setupPlugin(args ...string) (handler.Handler6, error) {
 	return handleDHCPv6, nil
 }
 
-func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
+func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) { //nolint:staticcheck
 	m, err := req.GetInnerMessage()
 	if err != nil {
 		return nil, true
@@ -76,7 +76,7 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return resp, false
 
 	case dhcpv6.MessageTypeRequest:
-		resp, err = dhcpv6.NewReplyFromMessage(m)
+		resp, err = dhcpv6.NewReplyFromMessage(m) //nolint:staticcheck
 		if err != nil {
 			log.Errorf("Failed to create DHCPv6 reply: %v", err)
 			return nil, false
