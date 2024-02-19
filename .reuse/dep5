@@ -13,7 +13,7 @@ Files:
   Dockerfile
   Makefile
   config/*
-  config.yaml
+  config.yml
   go.mod
   go.sum
   hack/*
