@@ -1,8 +1,7 @@
 name: Size Label
 
 on:
-  pull_request_target:
-    types: [opened, reopened, synchronize]
+  pull_request:
 
 jobs:
   size-label:
