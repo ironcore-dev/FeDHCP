@@ -1,9 +1,6 @@
-// Copyright 2018-present the CoreDHCP Authors. All rights reserved
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-License-Identifier: MIT
 
-// This is a generated file, edits should be made in the corresponding source file
-// And this file regenerated using `coredhcp-generator --from core-plugins.txt`
 package main
 
 import (
@@ -21,9 +18,9 @@ import (
 	pl_mtu "github.com/coredhcp/coredhcp/plugins/mtu"
 	pl_searchdomains "github.com/coredhcp/coredhcp/plugins/searchdomains"
 	pl_serverid "github.com/coredhcp/coredhcp/plugins/serverid"
+	pl_bluefield "github.com/onmetal/fedhcp/plugins/bluefield"
 	pl_ipam "github.com/onmetal/fedhcp/plugins/ipam"
 	pl_onmetal "github.com/onmetal/fedhcp/plugins/onmetal"
-	pl_bluefield "github.com/onmetal/fedhcp/plugins/bluefield"
 	pl_pxeboot "github.com/onmetal/fedhcp/plugins/pxeboot"
 
 	"github.com/sirupsen/logrus"
