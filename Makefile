@@ -44,7 +44,7 @@ help: ## Display this help.
 
 .PHONY: addlicense
 addlicense: ## Add license headers to all go files.
-	find . -name '*.go' -exec go run github.com/google/addlicense -c 'OnMetal authors' {} +
+	find . -name '*.go' -exec go run github.com/google/addlicense -f hack/license-header.txt {} +
 
 .PHONY: checklicense
 checklicense: ## Check that every file has a license header present.

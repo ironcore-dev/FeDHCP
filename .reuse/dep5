@@ -1,0 +1,30 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: FeDHCP
+Upstream-Contact: IronCore authors <ospo@sap.com>
+Source: https://github.com/ironcore-dev/FeDHCP
+
+# --------------------------------------------------
+# source code
+
+Files:
+  .github/*
+  .gitignore
+  .golangci.yaml
+  Dockerfile
+  Makefile
+  config/*
+  config.yaml
+  go.mod
+  go.sum
+  hack/*
+Copyright: 2024 SAP SE or an SAP affiliate company and IronCore contributors
+License: MIT
+
+# --------------------------------------------------
+# documentation
+
+Files:
+  docs/*
+  README.md
+Copyright: 2024 SAP SE or an SAP affiliate company and IronCore contributors
+License: MIT

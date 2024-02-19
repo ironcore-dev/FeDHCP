@@ -1,6 +1,5 @@
-// Copyright 2018-present the CoreDHCP Authors. All rights reserved
-// This source code is licensed under the MIT license found in the
-// LICENSE file in the root directory of this source tree.
+// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-License-Identifier: MIT
 
 // Package nbp implements handling of an NBP (Network Boot Program) using an
 // URL, e.g. http://[fe80::abcd:efff:fe12:3456]/my-nbp or tftp://10.0.0.1/my-nbp .
