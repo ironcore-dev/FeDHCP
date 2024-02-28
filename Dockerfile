@@ -7,13 +7,9 @@ WORKDIR /workspace
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-COPY hack/ hack/
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-RUN --mount=type=ssh --mount=type=secret,id=github_pat GITHUB_PAT_PATH=/run/secrets/github_pat ./hack/setup-git-redirect.sh \
-  && mkdir -p -m 0600 ~/.ssh \
-  && ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts \
-  && go mod download
+RUN go mod download
 
 # Copy the go source
 COPY main.go main.go
