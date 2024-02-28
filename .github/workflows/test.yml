@@ -17,15 +17,5 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-      - name: Update github keys
-        run: |
-          mkdir -p ~/.ssh
-          for key in rsa ecdsa ed25519; do
-            ssh-keyscan -t $key github.com >> ~/.ssh/known_hosts
-          done
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.BOT_PRIVATE_KEY }}
-      - run: ./hack/setup-git-redirect.sh
       - run: make test
       - run: make
