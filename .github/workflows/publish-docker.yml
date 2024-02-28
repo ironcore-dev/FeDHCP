@@ -14,6 +14,10 @@ on:
       - 'docs/**'
       - '**/*.md'
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   buildAndPush:
     runs-on: ubuntu-latest
@@ -65,5 +69,3 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          secrets: |
-            "github_pat=${{ secrets.BOT_PAT }}"
