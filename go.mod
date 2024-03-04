@@ -1,12 +1,12 @@
 module github.com/ironcore-dev/fedhcp
 
-go 1.21
+go 1.22
 
 require (
-	github.com/coredhcp/coredhcp v0.0.0-20240119141436-4458e77f16d5
+	github.com/coredhcp/coredhcp v0.0.0-20240229102845-f97f9f36e88b
 	github.com/google/addlicense v1.1.1
-	github.com/insomniacslk/dhcp v0.0.0-20240204152450-ca2dc33955c1
-	github.com/ironcore-dev/ipam v0.0.30
+	github.com/insomniacslk/dhcp v0.0.0-20240227161007-c728f5dd21c8
+	github.com/ironcore-dev/ipam v0.1.1
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
@@ -57,7 +57,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/prometheus/client_golang v1.19.0 // indirect
 	github.com/prometheus/client_model v0.6.0 // indirect
-	github.com/prometheus/common v0.48.0 // indirect
+	github.com/prometheus/common v0.49.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
@@ -67,15 +67,15 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/viper v1.18.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/u-root/uio v0.0.0-20240209044354-b3d14b93376a // indirect
+	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
-	golang.org/x/crypto v0.19.0 // indirect
+	golang.org/x/crypto v0.20.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/oauth2 v0.17.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
 	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
