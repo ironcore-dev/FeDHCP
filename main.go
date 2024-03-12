@@ -14,10 +14,20 @@ import (
 	"github.com/coredhcp/coredhcp/server"
 
 	"github.com/coredhcp/coredhcp/plugins"
+	pl_autoconfigure "github.com/coredhcp/coredhcp/plugins/autoconfigure"
 	pl_dns "github.com/coredhcp/coredhcp/plugins/dns"
+	pl_example "github.com/coredhcp/coredhcp/plugins/example"
+	pl_file "github.com/coredhcp/coredhcp/plugins/file"
+	pl_leasetime "github.com/coredhcp/coredhcp/plugins/leasetime"
 	pl_mtu "github.com/coredhcp/coredhcp/plugins/mtu"
+	pl_nbp "github.com/coredhcp/coredhcp/plugins/nbp"
+	pl_netmask "github.com/coredhcp/coredhcp/plugins/netmask"
+	pl_prefix "github.com/coredhcp/coredhcp/plugins/prefix"
+	pl_range "github.com/coredhcp/coredhcp/plugins/range"
+	pl_router "github.com/coredhcp/coredhcp/plugins/router"
 	pl_searchdomains "github.com/coredhcp/coredhcp/plugins/searchdomains"
 	pl_serverid "github.com/coredhcp/coredhcp/plugins/serverid"
+	pl_staticroute "github.com/coredhcp/coredhcp/plugins/staticroute"
 	pl_bluefield "github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	pl_ipam "github.com/ironcore-dev/fedhcp/plugins/ipam"
 	pl_onmetal "github.com/ironcore-dev/fedhcp/plugins/onmetal"
@@ -53,14 +63,24 @@ func getLogLevels() []string {
 }
 
 var desiredPlugins = []*plugins.Plugin{
+	&pl_autoconfigure.Plugin,
 	&pl_dns.Plugin,
+	&pl_example.Plugin,
+	&pl_file.Plugin,
+	&pl_leasetime.Plugin,
 	&pl_mtu.Plugin,
-	&pl_onmetal.Plugin,
-	&pl_bluefield.Plugin,
-	&pl_pxeboot.Plugin,
+	&pl_nbp.Plugin,
+	&pl_netmask.Plugin,
+	&pl_prefix.Plugin,
+	&pl_range.Plugin,
+	&pl_router.Plugin,
 	&pl_searchdomains.Plugin,
 	&pl_serverid.Plugin,
+	&pl_staticroute.Plugin,
+	&pl_bluefield.Plugin,
 	&pl_ipam.Plugin,
+	&pl_onmetal.Plugin,
+	&pl_pxeboot.Plugin,
 }
 
 func main() {
