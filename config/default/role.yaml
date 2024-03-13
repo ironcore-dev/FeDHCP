@@ -4,7 +4,7 @@ metadata:
   name: fedhcp
 rules:
 - apiGroups:
-  - ipam.onmetal.de
+  - ipam.metal.ironcore.dev
   resources:
   - ips
   verbs:
