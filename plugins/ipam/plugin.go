@@ -6,6 +6,7 @@ package ipam
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -26,22 +27,22 @@ var (
 	k8sClient K8sClient
 )
 
-func parseArgs(args ...string) (string, string, error) {
-	if len(args) != 2 {
-		return "", "", fmt.Errorf("exactly two arguments must be passed to ipam plugin, got %d", len(args))
+func parseArgs(args ...string) (string, []string, error) {
+	if len(args) < 2 {
+		return "", []string{""}, fmt.Errorf("At least two arguments must be passed to ipam plugin, a namespace and a comma-separated subnet names list, got %d", len(args))
 	}
 
 	namespace := args[0]
-	subnet := args[1]
-	return namespace, subnet, nil
+	subnetNames := strings.Split(args[1], ",")
+	return namespace, subnetNames, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	namespace, subnet, err := parseArgs(args...)
+	namespace, subnetNames, err := parseArgs(args...)
 	if err != nil {
 		return nil, err
 	}
-	k8sClient = NewK8sClient(namespace, subnet)
+	k8sClient = NewK8sClient(namespace, subnetNames)
 	log.Printf("loaded ipam plugin for DHCPv6.")
 	return handler6, nil
 }
