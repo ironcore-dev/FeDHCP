@@ -1,6 +1,6 @@
 [![REUSE status](https://api.reuse.software/badge/github.com/ironcore-dev/FeDHCP)](https://api.reuse.software/info/github.com/ironcore-dev/FeDHCP)
 
-# Desription
+# Description
 `FeDHCP` is a DHCP server for the `ironcore` in-band network, based on [coredhcp](https://github.com/coredhcp/coredhcp).
 
 
