@@ -96,7 +96,7 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 			log.Infof("Cannot select subnet %s, does not exist", subnetName)
 			continue
 		}
-		if !checkIPv6InCIDR(ipaddr, existingSubnet.Spec.CIDR.String()) {
+		if !checkIPv6InCIDR(ipaddr, existingSubnet.Status.Reserved.String()) {
 			log.Infof("Cannot select subnet %s, CIDR mismatch", subnetName)
 			continue
 		}
