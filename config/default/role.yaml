@@ -15,3 +15,17 @@ rules:
   - events
   verbs:
   - '*'
+- apiGroups:
+  - ipam.metal.ironcore.dev
+  resources:
+  - subnets
+  verbs:
+  - 'get'
+  - 'watch'
+  - 'list'
+- apiGroups:
+  - ''
+  resources:
+  - events
+  verbs:
+  - '*'
