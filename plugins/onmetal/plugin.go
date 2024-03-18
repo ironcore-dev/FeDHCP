@@ -40,7 +40,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	if verbose == true {
+	if verbose {
 		log.Printf("Received DHCPv6 request: %s", strings.Replace(req.Summary(), "\n", " ", -1))
 	}
 
@@ -77,7 +77,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}},
 	})
 
-	if verbose == true {
+	if verbose {
 		log.Printf("Sent DHCPv6 response: %s", strings.Replace(resp.Summary(), "\n", " ", -1))
 	}
 
