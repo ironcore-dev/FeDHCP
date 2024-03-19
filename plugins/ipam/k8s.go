@@ -159,14 +159,19 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 
 		if createIpamIP {
 			err = k.Client.Create(ctx, ipamIP)
-			if err != nil {
+			if err != nil && !apierrors.IsAlreadyExists(err) {
 				err = errors.Wrapf(err, "Failed to create IP %s/%s", ipamIP.Namespace, ipamIP.Name)
 				return err
 			}
 
-			log.Infof("New IP created in subnet %s/%s", subnet.Namespace, subnet.Name)
-			k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
-			break
+			if apierrors.IsAlreadyExists(err) {
+				// do not create IP, because the deletion is not yet ready
+				break
+			} else {
+				log.Infof("New IP created in subnet %s/%s", subnet.Namespace, subnet.Name)
+				k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
+				break
+			}
 		}
 		log.Infof("IP already exists in subnet %s/%s, nothing to do", subnet.Namespace, subnet.Name)
 		break
