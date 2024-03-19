@@ -5,8 +5,6 @@ package onmetal
 
 import (
 	"net"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -17,8 +15,6 @@ import (
 
 var log = logger.GetLogger("plugins/onmetal")
 
-var verbose = false
-
 var Plugin = plugins.Plugin{
 	Name:   "onmetal",
 	Setup6: setup6,
@@ -27,22 +23,11 @@ var Plugin = plugins.Plugin{
 func setup6(args ...string) (handler.Handler6, error) {
 	log.Printf("loaded onmetal plugin for DHCPv6.")
 
-	if len(args) == 1 {
-		var err error
-		verbose, err = strconv.ParseBool(args[0])
-		if err != nil {
-			log.Printf("Error converting parameter to boolean: %v", err)
-			return nil, err
-		}
-	}
-
 	return handler6, nil
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	if verbose {
-		log.Printf("Received DHCPv6 request: %s", strings.Replace(req.Summary(), "\n", " ", -1))
-	}
+	log.Debugf("Received DHCPv6 request: %s", req.Summary())
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -77,9 +62,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}},
 	})
 
-	if verbose {
-		log.Printf("Sent DHCPv6 response: %s", strings.Replace(resp.Summary(), "\n", " ", -1))
-	}
+	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 
 	return resp, false
 }
