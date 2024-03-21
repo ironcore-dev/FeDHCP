@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	"github.com/pkg/errors"
@@ -152,23 +153,28 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 				}
 
 				k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-				log.Infof("Old IP deleted from subnet %s/%s", subnet.Namespace, subnet.Name)
+				log.Infof("Old IP deleted from subnet %s/%s, sleeping for 5 seconds, so the finalizer can run", subnet.Namespace, subnet.Name)
+				time.Sleep(5 * time.Second)
 				createIpamIP = true
 			}
 		}
 
 		if createIpamIP {
 			err = k.Client.Create(ctx, ipamIP)
-			if err != nil {
+			if err != nil && !apierrors.IsAlreadyExists(err) {
 				err = errors.Wrapf(err, "Failed to create IP %s/%s", ipamIP.Namespace, ipamIP.Name)
 				return err
 			}
-
-			log.Infof("New IP created in subnet %s/%s", subnet.Namespace, subnet.Name)
-			k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
-			break
+			if apierrors.IsAlreadyExists(err) {
+				// do not create IP, because the deletion is not yet ready
+				noop()
+			} else {
+				log.Infof("New IP created in subnet %s/%s", subnet.Namespace, subnet.Name)
+				k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
+			}
+		} else {
+			log.Infof("IP already exists in subnet %s/%s, nothing to do", subnet.Namespace, subnet.Name)
 		}
-		log.Infof("IP already exists in subnet %s/%s, nothing to do", subnet.Namespace, subnet.Name)
 		break
 	}
 
@@ -217,3 +223,5 @@ func checkIPv6InCIDR(ip net.IP, cidrStr string) bool {
 	// Check if the CIDR contains the IP
 	return cidrNet.Contains(ip)
 }
+
+func noop() {}
