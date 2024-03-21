@@ -165,17 +165,16 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 				err = errors.Wrapf(err, "Failed to create IP %s/%s", ipamIP.Namespace, ipamIP.Name)
 				return err
 			}
-
 			if apierrors.IsAlreadyExists(err) {
 				// do not create IP, because the deletion is not yet ready
-				break
+				noop()
 			} else {
 				log.Infof("New IP created in subnet %s/%s", subnet.Namespace, subnet.Name)
 				k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
-				break
 			}
+		} else {
+			log.Infof("IP already exists in subnet %s/%s, nothing to do", subnet.Namespace, subnet.Name)
 		}
-		log.Infof("IP already exists in subnet %s/%s, nothing to do", subnet.Namespace, subnet.Name)
 		break
 	}
 
@@ -224,3 +223,5 @@ func checkIPv6InCIDR(ip net.IP, cidrStr string) bool {
 	// Check if the CIDR contains the IP
 	return cidrNet.Contains(ip)
 }
+
+func noop() {}
