@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	"github.com/pkg/errors"
@@ -152,7 +153,8 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 				}
 
 				k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-				log.Infof("Old IP deleted from subnet %s/%s", subnet.Namespace, subnet.Name)
+				log.Infof("Old IP deleted from subnet %s/%s, sleeping for 5 seconds, so the finalizer can run", subnet.Namespace, subnet.Name)
+				time.Sleep(5 * time.Second)
 				createIpamIP = true
 			}
 		}
