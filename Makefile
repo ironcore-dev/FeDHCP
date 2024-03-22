@@ -24,7 +24,7 @@ run: all
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	DOCKER_BUILDKIT=1 docker build -t ${IMG} $(GITHUB_PAT_MOUNT) .
+	docker build -t ${IMG} $(GITHUB_PAT_MOUNT) .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
