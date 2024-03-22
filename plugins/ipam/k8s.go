@@ -73,16 +73,13 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 }
 
 func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
-	ip, err := ipamv1alpha1.IPAddrFromString(ipaddr.String())
-	if err != nil {
-		err = errors.Wrapf(err, "Failed to parse IP %s", ip)
-		return err
-	}
-
 	// select the subnet matching the CIDR of the request
 	subnetMatch := false
 	for _, subnetName := range k.SubnetNames {
-		subnet := k.getMatchingSubnet(subnetName, ipaddr)
+		subnet, err := k.getMatchingSubnet(subnetName, ipaddr)
+		if err != nil {
+			return err
+		}
 		if subnet == nil {
 			continue
 		}
@@ -94,24 +91,24 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 		if err != nil {
 			return err
 		}
-
 		if ipamIP != nil {
 			err = k.doCreateIpamIP(ipamIP, subnetName)
 			if err != nil {
 				return err
 			}
 		}
+		// break at first subnet match, there can be only one
 		break
 	}
 
 	if !subnetMatch {
-		log.Warningf("No matching subnet found for IP %s/%s", k.Namespace, ip)
+		log.Warningf("No matching subnet found for IP %s/%s", k.Namespace, ipaddr)
 	}
 
 	return nil
 }
 
-func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) *ipamv1alpha1.Subnet {
+func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1alpha1.Subnet, error) {
 	subnet := &ipamv1alpha1.Subnet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      subnetName,
@@ -122,22 +119,27 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) *ipamv1al
 	err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(subnet), existingSubnet)
 	if err != nil && !apierrors.IsNotFound(err) {
 		err = errors.Wrapf(err, "Failed to get subnet %s/%s", k.Namespace, subnetName)
-		return nil
+		return nil, err
 	}
 	if apierrors.IsNotFound(err) {
 		log.Debugf("Cannot select subnet %s/%s, does not exist", k.Namespace, subnetName)
-		return nil
+		return nil, nil
 	}
 	if !checkIPv6InCIDR(ipaddr, existingSubnet.Status.Reserved.String()) {
 		log.Debugf("Cannot select subnet %s/%s, CIDR mismatch", k.Namespace, subnetName)
-		return nil
+		return nil, nil
 	}
 
-	return subnet
+	return subnet, nil
 }
 
 func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net.HardwareAddr) (*ipamv1alpha1.IP, error) {
 	ip, err := ipamv1alpha1.IPAddrFromString(ipaddr.String())
+	if err != nil {
+		err = errors.Wrapf(err, "Failed to parse IP %s", ipaddr)
+		return nil, err
+	}
+
 	// a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and
 	// must start and end with an alphanumeric character.
 	// 2001:abcd:abcd::1 will become 2001-abcd-abcd-0000-0000-0000-0000-00001
@@ -176,7 +178,6 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net
 		if !reflect.DeepEqual(ipamIP.Spec, existingIpamIP.Spec) {
 			log.Debugf("IP mismatch:\nold IP: %v,\nnew IP: %v", prettyFormat(existingIpamIP.Spec), prettyFormat(ipamIP.Spec))
 			log.Infof("Delete old IP %s/%s", existingIpamIP.Namespace, existingIpamIP.Name)
-
 			// delete old IP object
 			err = k.Client.Delete(k.Ctx, existingIpamIP)
 			if err != nil {
