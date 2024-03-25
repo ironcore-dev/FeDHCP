@@ -19,9 +19,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	cacheddiscovery "k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -34,6 +37,7 @@ const (
 type K8sClient struct {
 	Client        client.Client
 	DynamicClient dynamic.DynamicClient
+	Clientset     kubernetes.Clientset
 	Namespace     string
 	SubnetNames   []string
 	Ctx           context.Context
@@ -55,6 +59,11 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 		log.Fatal("Failed to create a controller dynamic client: ", err)
 	}
 
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Fatal("Failed to create a controller clientset: ", err)
+	}
+
 	corev1Client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
 		log.Fatal("Failed to create a core client: ", err)
@@ -73,6 +82,7 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 	return K8sClient{
 		Client:        cl,
 		DynamicClient: *dynamicClient,
+		Clientset:     *clientset,
 		Namespace:     namespace,
 		SubnetNames:   subnetNames,
 		Ctx:           context.Background(),
@@ -210,12 +220,30 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net
 	return ipamIP, nil
 }
 
+func (k K8sClient) getGVRFromObject(ipamIP *ipamv1alpha1.IP) (schema.GroupVersionResource, error) {
+	var dummy schema.GroupVersionResource
+
+	gvk, err := k.Client.GroupVersionKindFor(ipamIP)
+	if err != nil {
+		return dummy, err
+	}
+
+	discoveryClient := cacheddiscovery.NewMemCacheClient(k.Clientset)
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+
+	restMapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return dummy, err
+	}
+
+	return restMapping.Resource, nil
+}
+
 func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
-	// Define the GroupVersionResource for your custom resource
-	gvr := schema.GroupVersionResource{
-		Group:    "ipam.metal.ironcore.dev",
-		Version:  "v1alpha1",
-		Resource: "ips",
+	gvr, err := k.getGVRFromObject(ipamIP)
+	if err != nil {
+		log.Errorf("Error watching the custom resource: %v", err)
+		return err
 	}
 
 	// Define the namespace and resource name (if you want to watch a specific resource)
