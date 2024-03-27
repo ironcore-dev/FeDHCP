@@ -200,9 +200,9 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net
 			}
 
 			k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-			log.Infof("Old IP %s/%s deleted from subnet %s/%s", existingIpamIP.Namespace, existingIpamIP.Name, k.Namespace, subnetName)
+			log.Infof("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace, existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
 		} else {
-			log.Infof("IP %s/%s already exists in subnet %s/%s, nothing to do", existingIpamIP.Namespace, existingIpamIP.Name, k.Namespace, subnetName)
+			log.Infof("IP %s/%s already exists in subnet %s, nothing to do", existingIpamIP.Namespace, existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
 			return nil, nil
 		}
 	}
@@ -230,8 +230,9 @@ func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
 
 	for event := range watcher.ResultChan() {
 		log.Debugf("Type: %s, Object: %v\n", event.Type, event.Object)
-		if event.Type == watch.Deleted {
-			log.Debug("IP deleted")
+		foundIpamIP := event.Object.(*ipamv1alpha1.IP)
+		if event.Type == watch.Deleted && reflect.DeepEqual(ipamIP.Spec, foundIpamIP.Spec) {
+			log.Infof("IP %s/%s deleted", foundIpamIP.Namespace, foundIpamIP.Name)
 			return nil
 		}
 	}
@@ -248,7 +249,7 @@ func (k K8sClient) doCreateIpamIP(ipamIP *ipamv1alpha1.IP, subnetName string) er
 		// do not create IP, because the deletion is not yet ready
 		noop()
 	} else {
-		log.Infof("New IP %s/%s created in subnet %s/%s", ipamIP.Namespace, ipamIP.Name, k.Namespace, subnetName)
+		log.Infof("New IP %s/%s created in subnet %s", ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
 		k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
 	}
 
