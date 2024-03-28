@@ -225,7 +225,7 @@ func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
 		TimeoutSeconds: &timeout,
 	})
 	if err != nil {
-		log.Fatalf("Error watching for IP: %v", err)
+		log.Errorf("Error watching for IP: %v", err)
 	}
 
 	log.Debugf("Watching for changes to IP %s/%s...", namespace, resourceName)
