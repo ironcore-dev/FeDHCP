@@ -39,25 +39,27 @@ type K8sClient struct {
 	EventRecorder record.EventRecorder
 }
 
-func NewK8sClient(namespace string, subnetNames []string) K8sClient {
+func NewK8sClient(namespace string, subnetNames []string) (K8sClient, error) {
+	dummyClient := K8sClient{}
+
 	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types ipam to client scheme: ", err)
+		return dummyClient, err
 	}
 
 	cfg := config.GetConfigOrDie()
 	cl, err := client.New(cfg, client.Options{})
 	if err != nil {
-		log.Fatal("Failed to create controller runtime client: ", err)
+		return dummyClient, err
 	}
 
 	clientset, err := ipam.NewForConfig(cfg)
 	if err != nil {
-		log.Fatal("Failed to create IPAM clientset: ", err)
+		return dummyClient, err
 	}
 
 	corev1Client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
-		log.Fatal("Failed to create core client: ", err)
+		return dummyClient, err
 	}
 
 	broadcaster := record.NewBroadcaster()
@@ -65,7 +67,7 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 	// Leader id, needs to be unique
 	id, err := os.Hostname()
 	if err != nil {
-		log.Fatal("Failed to get hostname: ", err)
+		return dummyClient, err
 	}
 	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: id})
 	broadcaster.StartRecordingToSink(&corev1client.EventSinkImpl{Interface: corev1Client.Events("")})
@@ -77,7 +79,7 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 		SubnetNames:   subnetNames,
 		Ctx:           context.Background(),
 		EventRecorder: recorder,
-	}
+	}, nil
 }
 
 func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {

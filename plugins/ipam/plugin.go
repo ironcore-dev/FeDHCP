@@ -42,8 +42,13 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
-	k8sClient = NewK8sClient(namespace, subnetNames)
-	log.Printf("loaded ipam plugin for DHCPv6.")
+
+	k8sClient, err = NewK8sClient(namespace, subnetNames)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("Loaded ipam plugin for DHCPv6.")
 	return handler6, nil
 }
 
