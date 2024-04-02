@@ -1,25 +1,24 @@
 // SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
-package ipam
+package oob
 
 import (
 	"fmt"
-	"net"
-	"strings"
-
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"net"
+	"time"
 
 	"github.com/mdlayher/netx/eui64"
 )
 
-var log = logger.GetLogger("plugins/ipam")
+var log = logger.GetLogger("plugins/oob")
 
 var Plugin = plugins.Plugin{
-	Name:   "ipam",
+	Name:   "oob",
 	Setup6: setup6,
 }
 
@@ -27,28 +26,28 @@ var (
 	k8sClient *K8sClient
 )
 
-func parseArgs(args ...string) (string, []string, error) {
+func parseArgs(args ...string) (string, string, error) {
 	if len(args) < 2 {
-		return "", []string{""}, fmt.Errorf("at least two arguments must be passed to ipam plugin, a namespace and a comma-separated subnet names list, got %d", len(args))
+		return "", "", fmt.Errorf("at least two arguments must be passed to ipam plugin, a namespace and a OOB subnet label, got %d", len(args))
 	}
 
 	namespace := args[0]
-	subnetNames := strings.Split(args[1], ",")
-	return namespace, subnetNames, nil
+	oobLabel := args[1]
+	return namespace, oobLabel, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	namespace, subnetNames, err := parseArgs(args...)
+	namespace, oobLabel, err := parseArgs(args...)
 	if err != nil {
 		return nil, err
 	}
 
-	k8sClient, err = NewK8sClient(namespace, subnetNames)
+	k8sClient, err = NewK8sClient(namespace, oobLabel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
 
-	log.Printf("Loaded ipam plugin for DHCPv6.")
+	log.Print("Loaded oob plugin for DHCPv6.")
 	return handler6, nil
 }
 
@@ -71,14 +70,38 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	ipaddr := make(net.IP, len(relayMsg.LinkAddr))
 	copy(ipaddr, relayMsg.LinkAddr)
-	ipaddr[len(ipaddr)-1] += 1
 
-	log.Infof("Generated IP address %s for mac %s", ipaddr.String(), mac.String())
-	err = k8sClient.createIpamIP(ipaddr, mac)
+	log.Infof("Requested IP address from relay %s for mac %s", ipaddr.String(), mac.String())
+	leaseIP, err := k8sClient.getIp(ipaddr, mac)
 	if err != nil {
-		log.Errorf("Could not create IPAM IP: %s", err)
+		log.Errorf("Could not get IPAM IP: %s", err)
 		return nil, true
 	}
+
+	var m *dhcpv6.Message
+	m, err = req.GetInnerMessage()
+	if err != nil {
+		log.Errorf("BUG: could not decapsulate: %v", err)
+		return nil, true
+	}
+
+	if m.Options.OneIANA() == nil {
+		log.Debug("No address requested")
+		return resp, false
+	}
+
+	resp.AddOption(&dhcpv6.OptIANA{
+		IaId: m.Options.OneIANA().IaId,
+		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
+			&dhcpv6.OptIAAddress{
+				IPv6Addr:          leaseIP,
+				PreferredLifetime: 24 * time.Hour,
+				ValidLifetime:     24 * time.Hour,
+			},
+		}},
+	})
+
+	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 
 	return resp, false
 }
