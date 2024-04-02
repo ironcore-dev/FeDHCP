@@ -43,22 +43,26 @@ func NewK8sClient(namespace string, subnetNames []string) (K8sClient, error) {
 	dummyClient := K8sClient{}
 
 	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		err = errors.Wrapf(err, "Unable to add registered types ipam to client scheme")
 		return dummyClient, err
 	}
 
 	cfg := config.GetConfigOrDie()
 	cl, err := client.New(cfg, client.Options{})
 	if err != nil {
+		err = errors.Wrapf(err, "Failed to create controller runtime client")
 		return dummyClient, err
 	}
 
 	clientset, err := ipam.NewForConfig(cfg)
 	if err != nil {
+		err = errors.Wrapf(err, "Failed to create IPAM clientset")
 		return dummyClient, err
 	}
 
 	corev1Client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
+		err = errors.Wrapf(err, "Failed to create core client")
 		return dummyClient, err
 	}
 
@@ -67,6 +71,7 @@ func NewK8sClient(namespace string, subnetNames []string) (K8sClient, error) {
 	// Leader id, needs to be unique
 	id, err := os.Hostname()
 	if err != nil {
+		err = errors.Wrapf(err, "Failed to get hostname")
 		return dummyClient, err
 	}
 	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: id})
