@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"reflect"
@@ -39,25 +40,26 @@ type K8sClient struct {
 	EventRecorder record.EventRecorder
 }
 
-func NewK8sClient(namespace string, subnetNames []string) K8sClient {
+func NewK8sClient(namespace string, subnetNames []string) (*K8sClient, error) {
+
 	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		log.Fatal("Unable to add registered types ipam to client scheme: ", err)
+		return nil, fmt.Errorf("unable to add registered types ipam to client scheme: %w", err)
 	}
 
 	cfg := config.GetConfigOrDie()
 	cl, err := client.New(cfg, client.Options{})
 	if err != nil {
-		log.Fatal("Failed to create controller runtime client: ", err)
+		return nil, fmt.Errorf("failed to create controller runtime client: %w", err)
 	}
 
 	clientset, err := ipam.NewForConfig(cfg)
 	if err != nil {
-		log.Fatal("Failed to create IPAM clientset: ", err)
+		return nil, fmt.Errorf("failed to create IPAM clientset: %w", err)
 	}
 
 	corev1Client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
-		log.Fatal("Failed to create core client: ", err)
+		return nil, fmt.Errorf("failed to create core client: %w", err)
 	}
 
 	broadcaster := record.NewBroadcaster()
@@ -65,12 +67,12 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 	// Leader id, needs to be unique
 	id, err := os.Hostname()
 	if err != nil {
-		log.Fatal("Failed to get hostname: ", err)
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: id})
 	broadcaster.StartRecordingToSink(&corev1client.EventSinkImpl{Interface: corev1Client.Events("")})
 
-	return K8sClient{
+	k8sClient := K8sClient{
 		Client:        cl,
 		Clientset:     *clientset,
 		Namespace:     namespace,
@@ -78,6 +80,7 @@ func NewK8sClient(namespace string, subnetNames []string) K8sClient {
 		Ctx:           context.Background(),
 		EventRecorder: recorder,
 	}
+	return &k8sClient, nil
 }
 
 func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
@@ -126,8 +129,7 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 	existingSubnet := subnet.DeepCopy()
 	err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(subnet), existingSubnet)
 	if err != nil && !apierrors.IsNotFound(err) {
-		err = errors.Wrapf(err, "Failed to get subnet %s/%s", k.Namespace, subnetName)
-		return nil, err
+		return nil, fmt.Errorf("failed to get subnet %s/%s: %w", k.Namespace, subnetName, err)
 	}
 	if apierrors.IsNotFound(err) {
 		log.Debugf("Cannot select subnet %s/%s, does not exist", k.Namespace, subnetName)
@@ -144,8 +146,7 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net.HardwareAddr) (*ipamv1alpha1.IP, error) {
 	ip, err := ipamv1alpha1.IPAddrFromString(ipaddr.String())
 	if err != nil {
-		err = errors.Wrapf(err, "Failed to parse IP %s", ipaddr)
-		return nil, err
+		return nil, fmt.Errorf("failed to parse IP %s: %w", ipaddr, err)
 	}
 
 	// a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and
@@ -175,8 +176,7 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net
 	existingIpamIP := ipamIP.DeepCopy()
 	err = k.Client.Get(k.Ctx, client.ObjectKeyFromObject(ipamIP), existingIpamIP)
 	if err != nil && !apierrors.IsNotFound(err) {
-		err = errors.Wrapf(err, "Failed to get IP %s/%s", existingIpamIP.Namespace, existingIpamIP.Name)
-		return nil, err
+		return nil, fmt.Errorf("failed to get IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
 	}
 
 	// create IPAM IP if not exists or delete existing if ip differs
@@ -189,14 +189,12 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net
 			// delete old IP object
 			err = k.Client.Delete(k.Ctx, existingIpamIP)
 			if err != nil {
-				err = errors.Wrapf(err, "Failed to delete IP %s/%s", existingIpamIP.Namespace, existingIpamIP.Name)
-				return nil, err
+				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
 			}
 
 			err = k.waitForDeletion(existingIpamIP)
 			if err != nil {
-				err = errors.Wrapf(err, "Failed to delete IP %s/%s", existingIpamIP.Namespace, existingIpamIP.Name)
-				return nil, err
+				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
 			}
 
 			k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
@@ -223,7 +221,7 @@ func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
 		TimeoutSeconds: &timeout,
 	})
 	if err != nil {
-		log.Fatalf("Error watching for IP: %v", err)
+		log.Errorf("Error watching for IP: %v", err)
 	}
 
 	log.Debugf("Watching for changes to IP %s/%s...", namespace, resourceName)
@@ -236,14 +234,13 @@ func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
 			return nil
 		}
 	}
-	return errors.New("Timeout reached, IP not deleted")
+	return errors.New("timeout reached, IP not deleted")
 }
 
 func (k K8sClient) doCreateIpamIP(ipamIP *ipamv1alpha1.IP, subnetName string) error {
 	err := k.Client.Create(k.Ctx, ipamIP)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		err = errors.Wrapf(err, "Failed to create IP %s/%s", ipamIP.Namespace, ipamIP.Name)
-		return err
+		return fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
 	}
 	if apierrors.IsAlreadyExists(err) {
 		// do not create IP, because the deletion is not yet ready
