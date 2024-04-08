@@ -24,7 +24,7 @@ var Plugin = plugins.Plugin{
 }
 
 var (
-	k8sClient K8sClient
+	k8sClient *K8sClient
 )
 
 func parseArgs(args ...string) (string, []string, error) {
@@ -45,7 +45,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 	k8sClient, err = NewK8sClient(namespace, subnetNames)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
 
 	log.Printf("Loaded ipam plugin for DHCPv6.")
