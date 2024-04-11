@@ -6,7 +6,7 @@ require (
 	github.com/coredhcp/coredhcp v0.0.0-20240229102845-f97f9f36e88b
 	github.com/google/addlicense v1.1.1
 	github.com/insomniacslk/dhcp v0.0.0-20240227161007-c728f5dd21c8
-	github.com/ironcore-dev/ipam v0.2.0
+	github.com/ironcore-dev/ipam v0.2.1
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
