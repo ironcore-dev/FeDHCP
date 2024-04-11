@@ -25,6 +25,7 @@ import (
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 )
 
@@ -34,10 +35,12 @@ var log = logger.GetLogger("plugins/pxeboot")
 var Plugin = plugins.Plugin{
 	Name:   "pxeboot",
 	Setup6: setup6,
+	Setup4: setup4,
 }
 
 var (
-	tftpOption, ipxeOption dhcpv6.Option
+	tftpOption, ipxeOption     dhcpv6.Option
+	tftpOptionV4, ipxeOptionV4 dhcpv4.Option
 )
 
 func parseArgs(args ...string) (*url.URL, *url.URL, error) {
@@ -65,6 +68,18 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 	log.Printf("loaded PXEBOOT plugin for DHCPv6.")
 	return pxebootHandler6, nil
+}
+
+func setup4(args ...string) (handler.Handler4, error) {
+	tftp, ipxe, err := parseArgs(args...)
+	if err != nil {
+		return nil, err
+	}
+	tftpOptionV4 = dhcpv4.OptBootFileName(tftp.String())
+	ipxeOptionV4 = dhcpv4.OptBootFileName(ipxe.String())
+
+	log.Printf("loaded PXEBOOT plugin for DHCPv4.")
+	return pxebootHandler4, nil
 }
 
 func pxebootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
@@ -102,6 +117,49 @@ func pxebootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		if opt != nil {
 			resp.AddOption(*opt)
 			log.Debugf("Added option %s", ipxeOption)
+		}
+	}
+
+	return resp, true
+}
+
+func pxebootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
+	if tftpOptionV4.Value == nil || ipxeOptionV4.Value == nil {
+		// Nothing to do
+		return resp, true
+	}
+
+	if req == nil {
+		log.Error("Request is nil")
+		return nil, false
+	}
+
+	// Check if boot file option is requested
+	if req.IsOptionRequested(dhcpv4.OptionBootfileName) {
+		var opt dhcpv4.Option
+
+		// Check if it's a TFTP request
+		if req.IsOptionRequested(dhcpv4.OptionParameterRequestList) {
+			paramList := req.ParameterRequestList()
+			for _, code := range paramList {
+				if code == dhcpv4.OptionClientSystemArchitectureType {
+					opt = tftpOptionV4
+					break
+				}
+			}
+		}
+
+		// Check if it's an iPXE request
+		if len(req.UserClass()) > 0 {
+			userClass := req.UserClass()
+			if userClass[0] == "iPXE" {
+				opt = ipxeOptionV4
+			}
+		}
+
+		if opt.Code != nil {
+			resp.UpdateOption(opt)
+			log.Debugf("Added option %s", opt)
 		}
 	}
 
