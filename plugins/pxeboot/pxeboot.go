@@ -144,7 +144,6 @@ func pxebootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			for _, code := range paramList {
 				if code == dhcpv4.OptionClientSystemArchitectureType {
 					opt = tftpOptionV4
-					break
 				}
 			}
 		}
