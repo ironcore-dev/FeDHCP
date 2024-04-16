@@ -40,7 +40,7 @@ var Plugin = plugins.Plugin{
 
 var (
 	tftpOption, ipxeOption                                       dhcpv6.Option
-	tftpBootFileOption, tftpServerNameOption, ipxeBootFileOption dhcpv4.Option
+	tftpBootFileOption, tftpServerNameOption, ipxeBootFileOption *dhcpv4.Option
 )
 
 func parseArgs(args ...string) (*url.URL, *url.URL, error) {
@@ -63,9 +63,15 @@ func setup4(args ...string) (handler.Handler4, error) {
 	if err != nil {
 		return nil, err
 	}
-	tftpBootFileOption = dhcpv4.OptBootFileName(tftp.Path)
-	tftpServerNameOption = dhcpv4.OptTFTPServerName(tftp.Host[1:])
-	ipxeBootFileOption = dhcpv4.OptBootFileName(ipxe.String())
+
+	opt1 := dhcpv4.OptBootFileName(tftp.Path)
+	tftpBootFileOption = &opt1
+
+	opt2 := dhcpv4.OptTFTPServerName(tftp.Host[1:])
+	tftpServerNameOption = &opt2
+
+	opt3 := dhcpv4.OptBootFileName(ipxe.String())
+	ipxeBootFileOption = &opt3
 
 	log.Printf("loaded PXEBOOT plugin for DHCPv4.")
 	return pxeBootHandler4, nil
@@ -74,7 +80,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	log.Debugf("Received DHCPv4 request: %s", req.Summary())
 
-	if &tftpBootFileOption == nil || &tftpServerNameOption == nil || &ipxeBootFileOption == nil {
+	if tftpBootFileOption == nil || tftpServerNameOption == nil || ipxeBootFileOption == nil {
 		// nothing to do
 		return resp, true
 	}
@@ -87,7 +93,7 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			userClassInfo := req.GetOneOption(dhcpv4.OptionUserClassInformation)
 			log.Debugf("UserClassInformation: %s (%x)", string(userClassInfo), userClassInfo)
 			if len(userClassInfo) >= 4 && string(userClassInfo[0:4]) == "iPXE" {
-				opt = &ipxeBootFileOption
+				opt = ipxeBootFileOption
 			}
 		} else
 		// if TFTP request
@@ -95,18 +101,18 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			classID := req.GetOneOption(dhcpv4.OptionClassIdentifier)
 			log.Debugf("ClassIdentifier: %s (%x)", string(classID), classID)
 			if len(classID) >= 19 && string(classID[0:19]) == "PXEClient:Arch:0000" {
-				opt = &tftpBootFileOption
-				opt2 = &tftpServerNameOption
+				opt = tftpBootFileOption
+				opt2 = tftpServerNameOption
 			}
 		}
 
 		if opt != nil {
 			resp.Options.Update(*opt)
-			log.Debugf("Added option %s", opt)
+			log.Debugf("Added option %s", *opt)
 		}
 		if opt2 != nil {
 			resp.Options.Update(*opt2)
-			log.Debugf("Added option %s", opt2)
+			log.Debugf("Added option %s", *opt2)
 		}
 	}
 
