@@ -75,10 +75,13 @@ func setup4(args ...string) (handler.Handler4, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf(tftp.String(), ipxe.String())
+
 	tftpOptionV4 = dhcpv4.OptBootFileName(tftp.String())
 	ipxeOptionV4 = dhcpv4.OptBootFileName(ipxe.String())
 
-	log.Printf("loaded PXEBOOT plugin for DHCPv4.")
+	log.Printf("loaded PXEBOOT plugin for DHCPv4 kapil.")
 	return pxebootHandler4, nil
 }
 
