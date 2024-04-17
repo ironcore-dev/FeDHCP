@@ -20,8 +20,10 @@ package pxeboot
 
 import (
 	"fmt"
-	"github.com/insomniacslk/dhcp/dhcpv4"
 	"net/url"
+
+	"github.com/insomniacslk/dhcp/dhcpv4"
+	"github.com/insomniacslk/dhcp/iana"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -153,7 +155,7 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		if decap.GetOneOption(dhcpv6.OptionClientArchType) != nil {
 			optBytes := decap.GetOneOption(dhcpv6.OptionClientArchType).ToBytes()
 			log.Debugf("ClientArchType: %s (%x)", string(optBytes), optBytes)
-			if len(optBytes) == 2 && optBytes[0] == 0 && optBytes[1] == 0x07 {
+			if len(optBytes) == 2 && optBytes[0] == 0 && optBytes[1] == byte(iana.EFI_X86_64) { // 0x07
 				opt = &tftpOption
 			}
 		}
