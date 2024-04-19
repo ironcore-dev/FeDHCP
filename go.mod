@@ -1,6 +1,8 @@
 module github.com/ironcore-dev/fedhcp
 
-go 1.22
+go 1.22.0
+
+toolchain go1.22.2
 
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20240229102845-f97f9f36e88b
@@ -11,8 +13,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/pflag v1.0.6-0.20201009195203-85dd5c8bc61c
-	k8s.io/api v0.29.4
-	k8s.io/apimachinery v0.29.4
+	k8s.io/api v0.30.0
+	k8s.io/apimachinery v0.30.0
 	k8s.io/client-go v0.29.4
 	sigs.k8s.io/controller-runtime v0.17.3
 )
