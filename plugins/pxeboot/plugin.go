@@ -49,13 +49,23 @@ func parseArgs(args ...string) (*url.URL, *url.URL, error) {
 	if len(args) != 2 {
 		return nil, nil, fmt.Errorf("exactly two arguments must be passed to PXEBOOT plugin, got %d", len(args))
 	}
+
 	tftp, err := url.Parse(args[0])
 	if err != nil {
 		return nil, nil, err
 	}
+
 	ipxe, err := url.Parse(args[1])
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if tftp.Scheme != "tftp" || tftp.Host == "" || tftp.Path == "" || tftp.Path[0] != '/' || tftp.Path[1:] == "" {
+		return nil, nil, fmt.Errorf("Malformed TFTP parameter, should be a valid URL")
+	}
+
+	if (ipxe.Scheme != "http" && ipxe.Scheme != "https") || ipxe.Host == "" || ipxe.Path == "" {
+		return nil, nil, fmt.Errorf("Malformed iPXE parameter, should be a valid URL")
 	}
 	return tftp, ipxe, nil
 }
@@ -127,6 +137,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	tftpOption = dhcpv6.OptBootFileURL(tftp.String())
 	ipxeOption = dhcpv6.OptBootFileURL(ipxe.String())
 
