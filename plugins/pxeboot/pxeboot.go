@@ -64,10 +64,10 @@ func setup4(args ...string) (handler.Handler4, error) {
 		return nil, err
 	}
 
-	opt1 := dhcpv4.OptBootFileName(tftp.Path)
+	opt1 := dhcpv4.OptBootFileName(tftp.Path[1:])
 	tftpBootFileOption = &opt1
 
-	opt2 := dhcpv4.OptTFTPServerName(tftp.Host[1:])
+	opt2 := dhcpv4.OptTFTPServerName(tftp.Host)
 	tftpServerNameOption = &opt2
 
 	opt3 := dhcpv4.OptBootFileName(ipxe.String())
