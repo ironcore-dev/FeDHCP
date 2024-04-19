@@ -4,10 +4,14 @@
 package pxeboot
 
 import (
+	"net"
+	"net/url"
 	"testing"
 
-	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/iana"
+
+	"github.com/insomniacslk/dhcp/dhcpv6"
 )
 
 const (
@@ -19,7 +23,14 @@ var (
 	numberOptsBootFileURL int
 )
 
-func Init(numOptBoot int) {
+func Init4() {
+	_, err := setup4(tftpPath, ipxePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func Init6(numOptBoot int) {
 	numberOptsBootFileURL = numOptBoot
 
 	_, err := setup6(tftpPath, ipxePath)
@@ -28,8 +39,10 @@ func Init(numOptBoot int) {
 	}
 }
 
+/* IPv6 */
+
 func TestPXERequested6(t *testing.T) {
-	Init(1)
+	Init6(1)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -71,7 +84,7 @@ func TestPXERequested6(t *testing.T) {
 }
 
 func TestTFTPRequested6(t *testing.T) {
-	Init(1)
+	Init6(1)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -108,7 +121,7 @@ func TestTFTPRequested6(t *testing.T) {
 }
 
 func TestWrongPXERequested6(t *testing.T) {
-	Init(0)
+	Init6(0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -145,7 +158,7 @@ func TestWrongPXERequested6(t *testing.T) {
 }
 
 func TestWrongTFTPRequested6(t *testing.T) {
-	Init(0)
+	Init6(0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -177,7 +190,7 @@ func TestWrongTFTPRequested6(t *testing.T) {
 }
 
 func TestPXENotRequested6(t *testing.T) {
-	Init(0)
+	Init6(0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -207,7 +220,7 @@ func TestPXENotRequested6(t *testing.T) {
 }
 
 func TestTFTPNotRequested6(t *testing.T) {
-	Init(0)
+	Init6(0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -233,5 +246,202 @@ func TestTFTPNotRequested6(t *testing.T) {
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
 		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", numberOptsBootFileURL, len(opts), opts)
+	}
+}
+
+/* IPV4 */
+
+func TestPXERequested4(t *testing.T) {
+	Init4()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optUserClass := dhcpv4.OptUserClass("iPXE")
+	req.UpdateOption(optUserClass)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+
+	if !stop {
+		t.Error("plugin does not interrupt processing, but it should have")
+	}
+
+	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileURL != ipxePath {
+		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, ipxePath)
+	}
+}
+
+func TestTFTPRequested4(t *testing.T) {
+	Init4()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optClassID := dhcpv4.OptClassIdentifier("PXEClient:Arch:00007")
+	req.UpdateOption(optClassID)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+
+	if !stop {
+		t.Error("plugin does not interrupt processing, but it should have")
+	}
+
+	const protocol = "tftp"
+	tftpServerName := dhcpv4.GetString(dhcpv4.OptionTFTPServerName, resp.Options)
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	combinedPath := (&url.URL{
+		Scheme: protocol,
+		Host:   tftpServerName,
+		Path:   bootFileName,
+	}).String()
+	if combinedPath != tftpPath {
+		t.Errorf("Found TFTP path %s, expected %s", combinedPath, tftpPath)
+	}
+}
+
+func TestPXENotRequested4(t *testing.T) {
+	Init4()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+
+	if !stop {
+		t.Error("plugin does not interrupt processing, but it should have")
+	}
+
+	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileURL != "" {
+		t.Errorf("Found BootFileURL %s, expected empty", bootFileURL)
+	}
+}
+
+func TestTFTPNotRequested4(t *testing.T) {
+	Init4()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+
+	if !stop {
+		t.Error("plugin does not interrupt processing, but it should have")
+	}
+
+	tftpServerName := dhcpv4.GetString(dhcpv4.OptionTFTPServerName, resp.Options)
+	if tftpServerName != "" {
+		t.Errorf("Found TFTP server %s, expected empty", tftpServerName)
+	}
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != "" {
+		t.Errorf("Found TFTP path %s, expected empty", bootFileName)
+	}
+}
+
+func TestWrongPXERequested4(t *testing.T) {
+	Init4()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optUserClass := dhcpv4.OptUserClass("foobar") // nonsense
+	req.UpdateOption(optUserClass)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+
+	if !stop {
+		t.Error("plugin does not interrupt processing, but it should have")
+	}
+
+	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileURL != "" {
+		t.Errorf("Found BootFileURL %s, expected empty", bootFileURL)
+	}
+}
+
+func TestWrongTFTPRequested4(t *testing.T) {
+	Init4()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optClassID := dhcpv4.OptClassIdentifier("foobar") // nonsense
+	req.UpdateOption(optClassID)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+
+	if !stop {
+		t.Error("plugin does not interrupt processing, but it should have")
+	}
+
+	tftpServerName := dhcpv4.GetString(dhcpv4.OptionTFTPServerName, resp.Options)
+	if tftpServerName != "" {
+		t.Errorf("Found TFTP server %s, expected empty", tftpServerName)
+	}
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != "" {
+		t.Errorf("Found TFTP path %s, expected empty", bootFileName)
 	}
 }
