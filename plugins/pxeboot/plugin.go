@@ -61,11 +61,11 @@ func parseArgs(args ...string) (*url.URL, *url.URL, error) {
 	}
 
 	if tftp.Scheme != "tftp" || tftp.Host == "" || tftp.Path == "" || tftp.Path[0] != '/' || tftp.Path[1:] == "" {
-		return nil, nil, fmt.Errorf("Malformed TFTP parameter, should be a valid URL")
+		return nil, nil, fmt.Errorf("malformed TFTP parameter, should be a valid URL")
 	}
 
 	if (ipxe.Scheme != "http" && ipxe.Scheme != "https") || ipxe.Host == "" || ipxe.Path == "" {
-		return nil, nil, fmt.Errorf("Malformed iPXE parameter, should be a valid URL")
+		return nil, nil, fmt.Errorf("malformed iPXE parameter, should be a valid URL")
 	}
 	return tftp, ipxe, nil
 }
