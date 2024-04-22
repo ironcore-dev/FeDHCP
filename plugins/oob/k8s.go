@@ -5,7 +5,6 @@ package oob
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -366,22 +365,6 @@ func (k K8sClient) applySubnetLabel(ipamIP *ipamv1alpha1.IP) {
 			log.Debugf("Subnet label applied to IPAM IP %s\n", ipamIP.Name)
 		}
 	}
-}
-
-func getLongIPv6(ip net.IP) string {
-	dst := make([]byte, hex.EncodedLen(len(ip)))
-	_ = hex.Encode(dst, ip)
-
-	longIpv6 := string(dst[0:4]) + ":" +
-		string(dst[4:8]) + ":" +
-		string(dst[8:12]) + ":" +
-		string(dst[12:16]) + ":" +
-		string(dst[16:20]) + ":" +
-		string(dst[20:24]) + ":" +
-		string(dst[24:28]) + ":" +
-		string(dst[28:])
-
-	return strings.ReplaceAll(longIpv6, ":", "-")
 }
 
 func prettyFormat(ipSpec interface{}) string {
