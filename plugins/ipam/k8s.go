@@ -103,7 +103,7 @@ func (k K8sClient) createIpamIP(ipaddr net.IP, mac net.HardwareAddr) error {
 			return err
 		}
 		if ipamIP != nil {
-			err = k.doCreateIpamIP(ipamIP, subnetName)
+			err = k.doCreateIpamIP(ipamIP)
 			if err != nil {
 				return err
 			}
@@ -237,7 +237,7 @@ func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
 	return errors.New("timeout reached, IP not deleted")
 }
 
-func (k K8sClient) doCreateIpamIP(ipamIP *ipamv1alpha1.IP, subnetName string) error {
+func (k K8sClient) doCreateIpamIP(ipamIP *ipamv1alpha1.IP) error {
 	err := k.Client.Create(k.Ctx, ipamIP)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)

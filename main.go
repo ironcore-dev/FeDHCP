@@ -32,6 +32,7 @@ import (
 	pl_bluefield "github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	pl_ipam "github.com/ironcore-dev/fedhcp/plugins/ipam"
 	pl_onmetal "github.com/ironcore-dev/fedhcp/plugins/onmetal"
+	pl_oob "github.com/ironcore-dev/fedhcp/plugins/oob"
 	pl_pxeboot "github.com/ironcore-dev/fedhcp/plugins/pxeboot"
 
 	"github.com/sirupsen/logrus"
@@ -82,6 +83,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&pl_bluefield.Plugin,
 	&pl_ipam.Plugin,
 	&pl_onmetal.Plugin,
+	&pl_oob.Plugin,
 	&pl_pxeboot.Plugin,
 }
 
