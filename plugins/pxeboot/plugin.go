@@ -20,8 +20,10 @@ package pxeboot
 
 import (
 	"fmt"
-	"github.com/insomniacslk/dhcp/dhcpv4"
 	"net/url"
+
+	"github.com/insomniacslk/dhcp/dhcpv4"
+	"github.com/insomniacslk/dhcp/iana"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -47,13 +49,23 @@ func parseArgs(args ...string) (*url.URL, *url.URL, error) {
 	if len(args) != 2 {
 		return nil, nil, fmt.Errorf("exactly two arguments must be passed to PXEBOOT plugin, got %d", len(args))
 	}
+
 	tftp, err := url.Parse(args[0])
 	if err != nil {
 		return nil, nil, err
 	}
+
 	ipxe, err := url.Parse(args[1])
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if tftp.Scheme != "tftp" || tftp.Host == "" || tftp.Path == "" || tftp.Path[0] != '/' || tftp.Path[1:] == "" {
+		return nil, nil, fmt.Errorf("Malformed TFTP parameter, should be a valid URL")
+	}
+
+	if (ipxe.Scheme != "http" && ipxe.Scheme != "https") || ipxe.Host == "" || ipxe.Path == "" {
+		return nil, nil, fmt.Errorf("Malformed iPXE parameter, should be a valid URL")
 	}
 	return tftp, ipxe, nil
 }
@@ -125,6 +137,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	tftpOption = dhcpv6.OptBootFileURL(tftp.String())
 	ipxeOption = dhcpv6.OptBootFileURL(ipxe.String())
 
@@ -153,7 +166,7 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		if decap.GetOneOption(dhcpv6.OptionClientArchType) != nil {
 			optBytes := decap.GetOneOption(dhcpv6.OptionClientArchType).ToBytes()
 			log.Debugf("ClientArchType: %s (%x)", string(optBytes), optBytes)
-			if len(optBytes) == 2 && optBytes[0] == 0 && optBytes[1] == 0x07 {
+			if len(optBytes) == 2 && optBytes[0] == 0 && optBytes[1] == byte(iana.EFI_X86_64) { // 0x07
 				opt = &tftpOption
 			}
 		}
