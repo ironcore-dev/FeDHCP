@@ -127,6 +127,7 @@ func pxebootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 }
 
 func pxebootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
+	log.Debugf("request %s", req)
 	if tftpOptionV4.Value == nil || ipxeOptionV4.Value == nil {
 		// Nothing to do
 		return resp, true
