@@ -54,6 +54,7 @@ var logLevels = map[string]func(*logrus.Logger){
 	"warning": func(l *logrus.Logger) { l.SetLevel(logrus.WarnLevel) },
 	"error":   func(l *logrus.Logger) { l.SetLevel(logrus.ErrorLevel) },
 	"fatal":   func(l *logrus.Logger) { l.SetLevel(logrus.FatalLevel) },
+	"trace":   func(l *logrus.Logger) { l.SetLevel(logrus.TraceLevel) },
 }
 
 func getLogLevels() []string {
