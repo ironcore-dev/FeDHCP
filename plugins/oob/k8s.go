@@ -84,7 +84,7 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 	return &k8sClient, nil
 }
 
-func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr) (net.IP, error) {
+func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr, exactIP bool) (net.IP, error) {
 	var ipamIP *ipamv1alpha1.IP
 	macKey := strings.ReplaceAll(mac.String(), ":", "")
 
@@ -110,7 +110,7 @@ func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr) (net.IP, error) {
 				return nil, err
 			}
 			if ipamIP == nil {
-				ipamIP, err = k.doCreateIpamIP(subnetName, macKey)
+				ipamIP, err = k.doCreateIpamIP(subnetName, macKey, ipaddr, exactIP)
 				if err != nil {
 					return nil, err
 				}
@@ -183,25 +183,48 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv
 	return nil, nil
 }
 
-func (k K8sClient) doCreateIpamIP(subnetName string, macKey string) (*ipamv1alpha1.IP, error) {
+func (k K8sClient) doCreateIpamIP(subnetName string, macKey string, ipaddr net.IP, exactIP bool) (*ipamv1alpha1.IP, error) {
 	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
 	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
-	ipamIP := &ipamv1alpha1.IP{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: macKey + "-" + origin + "-",
-			Namespace:    k.Namespace,
-			Labels: map[string]string{
-				"mac":       macKey,
-				"origin":    origin,
-				oobLabelKey: oobLabelValue,
+	var ipamIP *ipamv1alpha1.IP
+	if ipaddr.String() == UNKNOWN_IP || !exactIP {
+		ipamIP = &ipamv1alpha1.IP{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: macKey + "-" + origin + "-",
+				Namespace:    k.Namespace,
+				Labels: map[string]string{
+					"mac":       macKey,
+					"origin":    origin,
+					oobLabelKey: oobLabelValue,
+				},
 			},
-		},
-		Spec: ipamv1alpha1.IPSpec{
-			Subnet: corev1.LocalObjectReference{
-				Name: subnetName,
+			Spec: ipamv1alpha1.IPSpec{
+				Subnet: corev1.LocalObjectReference{
+					Name: subnetName,
+				},
 			},
-		},
+		}
+	} else {
+		ip, _ := ipamv1alpha1.IPAddrFromString(ipaddr.String())
+		ipamIP = &ipamv1alpha1.IP{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: macKey + "-" + origin + "-",
+				Namespace:    k.Namespace,
+				Labels: map[string]string{
+					"mac":       macKey,
+					"origin":    origin,
+					oobLabelKey: oobLabelValue,
+				},
+			},
+			Spec: ipamv1alpha1.IPSpec{
+				IP: ip,
+				Subnet: corev1.LocalObjectReference{
+					Name: subnetName,
+				},
+			},
+		}
 	}
+
 	err := k.Client.Create(k.Ctx, ipamIP)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
@@ -328,7 +351,7 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 		log.Debugf("Cannot select subnet %s/%s, does not exist", k.Namespace, subnetName)
 		return nil, nil
 	}
-	if !checkIPv6InCIDR(ipaddr, existingSubnet.Status.Reserved.String()) {
+	if !checkIPInCIDR(ipaddr, existingSubnet.Status.Reserved.String()) && ipaddr.String() != UNKNOWN_IP {
 		log.Debugf("Cannot select subnet %s/%s, CIDR mismatch", k.Namespace, subnetName)
 		return nil, nil
 	}
@@ -378,7 +401,7 @@ func prettyFormat(ipSpec interface{}) string {
 	return string(jsonBytes)
 }
 
-func checkIPv6InCIDR(ip net.IP, cidrStr string) bool {
+func checkIPInCIDR(ip net.IP, cidrStr string) bool {
 	// Parse the CIDR string
 	_, cidrNet, err := net.ParseCIDR(cidrStr)
 	if err != nil {
