@@ -5,12 +5,14 @@ package oob
 
 import (
 	"fmt"
+	"net"
+	"time"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
-	"net"
-	"time"
 
 	"github.com/mdlayher/netx/eui64"
 )
@@ -19,11 +21,16 @@ var log = logger.GetLogger("plugins/oob")
 
 var Plugin = plugins.Plugin{
 	Name:   "oob",
+	Setup4: setup4,
 	Setup6: setup6,
 }
 
 var (
 	k8sClient *K8sClient
+)
+
+const (
+	UNKNOWN_IP = "0.0.0.0"
 )
 
 func parseArgs(args ...string) (string, string, error) {
@@ -72,7 +79,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	copy(ipaddr, relayMsg.LinkAddr)
 
 	log.Infof("Requested IP address from relay %s for mac %s", ipaddr.String(), mac.String())
-	leaseIP, err := k8sClient.getIp(ipaddr, mac)
+	leaseIP, err := k8sClient.getIp(ipaddr, mac, false)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
 		return nil, true
@@ -102,6 +109,67 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	})
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+
+	return resp, false
+}
+
+func setup4(args ...string) (handler.Handler4, error) {
+	namespace, oobLabel, err := parseArgs(args...)
+	if err != nil {
+		return nil, err
+	}
+
+	k8sClient, err = NewK8sClient(namespace, oobLabel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create k8s client: %w", err)
+	}
+
+	log.Print("Loaded oob plugin for DHCPv4.")
+	return handler4, nil
+}
+
+func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
+	mac := req.ClientHWAddr
+
+	log.Debugf("received DHCPv4 packet: %s", req.Summary())
+	log.Tracef("Message type: %s", req.MessageType().String())
+
+	var ipaddr net.IP
+	var exactIP bool
+
+	serverIP := resp.ServerIPAddr
+	clientIP := req.ClientIPAddr
+	requestedIP := dhcpv4.GetIP(dhcpv4.OptionRequestedIPAddress, req.Options)
+	if clientIP != nil {
+		// ack requested address
+		exactIP = true
+		ipaddr = clientIP
+		log.Debugf("IP client: %v", ipaddr)
+	} else if requestedIP != nil {
+		// ack requested address
+		exactIP = true
+		ipaddr = requestedIP
+		log.Debugf("IP client: %v", ipaddr)
+	} else if serverIP != nil {
+		// no client information, use server address for subnet detection
+		exactIP = false
+		ipaddr = serverIP
+		log.Debugf("IP server: %v", ipaddr)
+	} else {
+		ipaddr = net.ParseIP(UNKNOWN_IP)
+		exactIP = false
+	}
+
+	log.Debugf("IP: %v", ipaddr)
+	leaseIP, err := k8sClient.getIp(ipaddr, mac, exactIP)
+	if err != nil {
+		log.Errorf("Could not get IPAM IP: %s", err)
+		return nil, true
+	}
+
+	resp.YourIPAddr = leaseIP
+
+	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
 
 	return resp, false
 }
