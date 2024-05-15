@@ -1,20 +1,13 @@
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
 
-GITHUB_PAT_PATH ?=
-ifeq (,$(GITHUB_PAT_PATH))
-GITHUB_PAT_MOUNT ?=
-else
-GITHUB_PAT_MOUNT ?= --secret id=github_pat,src=$(GITHUB_PAT_PATH)
-endif
-
 .PHONY: target/fedhcp
 
 all: target/fedhcp
 
 target/fedhcp:
 	mkdir -p target
-	CGO_ENABLED=0 go build -o target/fedhcp .
+	CGO_ENABLED=1 go build -o target/fedhcp .
 
 clean:
 	rm -rf target
