@@ -22,9 +22,26 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GO111MODULE=on go build -ldflags="-s -w" -a -o fedhcp main.go
 
-FROM gcr.io/distroless/static-debian11
+FROM debian:stable as installer
+
+RUN apt-get update \
+  && apt-get -y install --no-install-recommends libcap2-bin \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM gcr.io/distroless/static-debian12
+
 WORKDIR /
+
 COPY --from=builder /workspace/fedhcp .
+COPY --from=installer /sbin/setcap /sbin/setcap
+COPY --from=installer /lib/x86_64-linux-gnu/libcap.so.2 /lib/x86_64-linux-gnu/libcap.so.2
+COPY --from=installer /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
+COPY --from=installer /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+COPY --from=installer /bin/sh /bin/sh
+
+RUN /sbin/setcap 'cap_net_bind_service,cap_net_raw=+ep' /fedhcp
+
 USER 65532:65532
 
 ENTRYPOINT ["/fedhcp"]
