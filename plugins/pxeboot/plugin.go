@@ -94,7 +94,7 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	if tftpBootFileOption == nil || tftpServerNameOption == nil || ipxeBootFileOption == nil {
 		// nothing to do
-		return resp, true
+		return resp, false
 	}
 
 	if req.IsOptionRequested(dhcpv4.OptionBootfileName) {
@@ -129,7 +129,7 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	}
 
 	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
-	return resp, true
+	return resp, false
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
@@ -150,13 +150,13 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	if tftpOption == nil || ipxeOption == nil {
 		// nothing to do
-		return resp, true
+		return resp, false
 	}
 	decap, err := req.GetInnerMessage()
 	if err != nil {
 		log.Errorf("Could not decapsulate request: %v", err)
 		// drop the request, this is probably a critical error in the packet.
-		return nil, true
+		return nil, false
 	}
 
 	if decap.IsOptionRequested(dhcpv6.OptionBootfileURL) {
@@ -187,5 +187,5 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	}
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
-	return resp, true
+	return resp, false
 }

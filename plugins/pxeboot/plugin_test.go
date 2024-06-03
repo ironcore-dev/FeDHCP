@@ -142,8 +142,8 @@ func TestPXERequested6(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
@@ -179,8 +179,8 @@ func TestTFTPRequested6(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
@@ -221,8 +221,8 @@ func TestWrongPXERequested6(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
@@ -253,8 +253,8 @@ func TestWrongTFTPRequested6(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
@@ -283,8 +283,8 @@ func TestPXENotRequested6(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
@@ -313,8 +313,8 @@ func TestTFTPNotRequested6(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
 	if len(opts) != numberOptsBootFileURL {
@@ -345,8 +345,8 @@ func TestPXERequested4(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
 	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
@@ -376,8 +376,8 @@ func TestTFTPRequested4(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
 	const protocol = "tftp"
@@ -411,8 +411,8 @@ func TestPXENotRequested4(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
 	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
@@ -439,8 +439,8 @@ func TestTFTPNotRequested4(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
 	tftpServerName := dhcpv4.GetString(dhcpv4.OptionTFTPServerName, resp.Options)
@@ -474,8 +474,8 @@ func TestWrongPXERequested4(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
 	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
@@ -505,8 +505,8 @@ func TestWrongTFTPRequested4(t *testing.T) {
 		t.Fatal("plugin did not return a message")
 	}
 
-	if !stop {
-		t.Error("plugin does not interrupt processing, but it should have")
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
 	tftpServerName := dhcpv4.GetString(dhcpv4.OptionTFTPServerName, resp.Options)
