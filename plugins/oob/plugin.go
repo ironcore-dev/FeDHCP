@@ -5,6 +5,7 @@ package oob
 
 import (
 	"fmt"
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	"net"
 	"time"
 
@@ -79,7 +80,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	copy(ipaddr, relayMsg.LinkAddr)
 
 	log.Infof("Requested IP address from relay %s for mac %s", ipaddr.String(), mac.String())
-	leaseIP, err := k8sClient.getIp(ipaddr, mac, false)
+	leaseIP, err := k8sClient.getIp(ipaddr, mac, false, ipamv1alpha1.CIPv6SubnetType)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
 		return nil, true
@@ -161,7 +162,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	}
 
 	log.Debugf("IP: %v", ipaddr)
-	leaseIP, err := k8sClient.getIp(ipaddr, mac, exactIP)
+	leaseIP, err := k8sClient.getIp(ipaddr, mac, exactIP, ipamv1alpha1.CIPv4SubnetType)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
 		return nil, true

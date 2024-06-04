@@ -84,11 +84,11 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 	return &k8sClient, nil
 }
 
-func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr, exactIP bool) (net.IP, error) {
+func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr, exactIP bool, subnetType ipamv1alpha1.SubnetAddressType) (net.IP, error) {
 	var ipamIP *ipamv1alpha1.IP
 	macKey := strings.ReplaceAll(mac.String(), ":", "")
 
-	subnetNames := k.getOOBNetworks()
+	subnetNames := k.getOOBNetworks(subnetType)
 	if len(subnetNames) == 0 {
 		return nil, errors.New("No OOB subnets found")
 	} else {
@@ -316,7 +316,7 @@ func (k K8sClient) waitForCreation(ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, e
 	return nil, errors.New("Timeout reached, IP not created")
 }
 
-func (k K8sClient) getOOBNetworks() []string {
+func (k K8sClient) getOOBNetworks(subnetType ipamv1alpha1.SubnetAddressType) []string {
 	timeout := int64(5)
 
 	subnetList, err := k.Clientset.IpamV1alpha1().Subnets(k.Namespace).List(context.TODO(), metav1.ListOptions{
@@ -329,7 +329,9 @@ func (k K8sClient) getOOBNetworks() []string {
 
 	oobSubnetNames := []string{}
 	for _, subnet := range subnetList.Items {
-		oobSubnetNames = append(oobSubnetNames, subnet.Name)
+		if subnet.Status.Type == subnetType {
+			oobSubnetNames = append(oobSubnetNames, subnet.Name)
+		}
 	}
 
 	return oobSubnetNames
