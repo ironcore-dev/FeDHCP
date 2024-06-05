@@ -5,13 +5,14 @@ package httpboot
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
-	"net/url"
-	"strings"
 )
 
 var bootFile4 string
