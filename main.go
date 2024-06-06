@@ -30,6 +30,7 @@ import (
 	pl_sleep "github.com/coredhcp/coredhcp/plugins/sleep"
 	pl_staticroute "github.com/coredhcp/coredhcp/plugins/staticroute"
 	pl_bluefield "github.com/ironcore-dev/fedhcp/plugins/bluefield"
+	pl_httpboot "github.com/ironcore-dev/fedhcp/plugins/httpboot"
 	pl_ipam "github.com/ironcore-dev/fedhcp/plugins/ipam"
 	pl_onmetal "github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	pl_oob "github.com/ironcore-dev/fedhcp/plugins/oob"
@@ -86,6 +87,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&pl_onmetal.Plugin,
 	&pl_oob.Plugin,
 	&pl_pxeboot.Plugin,
+	&pl_httpboot.Plugin,
 }
 
 func main() {
