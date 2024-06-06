@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -60,13 +59,13 @@ func setup4(args ...string) (handler.Handler4, error) {
 func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
 
-	clientIP, err := extractClientIP6(req)
+	clientIPs, err := extractClientIP6(req)
 	if err != nil {
 		log.Errorf("failed to extract the ClientIP, Error: %v Request: %v ", err, req)
 		return resp, true
 	}
 
-	ukiURL, err := fetchUKIURL(bootFile6, clientIP)
+	ukiURL, err := fetchUKIURL(bootFile6, clientIPs)
 	if err != nil {
 		log.Errorf("failed to fetch UKI URL: %v", err)
 		return resp, true
@@ -103,7 +102,7 @@ func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	log.Debugf("Received DHCPv4 request: %s", req.Summary())
 
-	ukiURL, err := fetchUKIURL(bootFile4, req.ClientIPAddr)
+	ukiURL, err := fetchUKIURL(bootFile4, []string{req.ClientIPAddr.String()})
 	if err != nil {
 		log.Errorf("failed to fetch UKI URL: %v", err)
 		return resp, true
@@ -127,24 +126,40 @@ func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	return resp, false
 }
 
-func extractClientIP6(req dhcpv6.DHCPv6) (net.IP, error) {
+func extractClientIP6(req dhcpv6.DHCPv6) ([]string, error) {
 	if req.IsRelay() {
 		relayMsg, ok := req.(*dhcpv6.RelayMessage)
 		if !ok {
 			return nil, fmt.Errorf("failed to cast the DHCPv6 request to a RelayMessage")
 		}
-		return relayMsg.LinkAddr, nil
+
+		var addresses []string
+		if relayMsg.LinkAddr != nil {
+			addresses = append(addresses, relayMsg.LinkAddr.String())
+		}
+
+		if _, linkLayerAddress := relayMsg.Options.ClientLinkLayerAddress(); linkLayerAddress != nil {
+			addresses = append(addresses, linkLayerAddress.String())
+		}
+
+		if len(addresses) == 0 {
+			return nil, fmt.Errorf("no client IP or link-layer address found in the relay message")
+		}
+
+		return addresses, nil
 	}
 	return nil, fmt.Errorf("received non-relay DHCPv6 request, client IP cannot be extracted from non-relayed messages")
 }
 
-func fetchUKIURL(url string, clientIP net.IP) (string, error) {
+func fetchUKIURL(url string, clientIPs []string) (string, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("X-Forwarded-For", clientIP.String())
+
+	xForwardedFor := strings.Join(clientIPs, ", ")
+	req.Header.Set("X-Forwarded-For", xForwardedFor)
 
 	resp, err := client.Do(req)
 	if err != nil {
