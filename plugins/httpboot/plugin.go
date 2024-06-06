@@ -4,7 +4,11 @@
 package httpboot
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -28,18 +32,18 @@ var Plugin = plugins.Plugin{
 
 func parseArgs(args ...string) (*url.URL, error) {
 	if len(args) != 1 {
-		return nil, fmt.Errorf("Exactly one argument must be passed to the httpboot plugin, got %d", len(args))
+		return nil, fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
 	}
 	return url.Parse(args[0])
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
 	u, err := parseArgs(args...)
-	if err != nil {
-		return nil, err
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("invalid URL provided: %v", err)
 	}
 	bootFile6 = u.String()
-	log.Printf("loaded httpboot plugin for DHCPv6.")
+	log.Printf("Configured httpboot plugin with URL: %s", bootFile6)
 	return Handler6, nil
 }
 
@@ -55,9 +59,22 @@ func setup4(args ...string) (handler.Handler4, error) {
 
 func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+
+	clientIP, err := extractClientIP6(req)
+	if err != nil {
+		log.Errorf("failed to extract the ClientIP, Error: %v Request: %v ", err, req)
+		return resp, true
+	}
+
+	ukiURL, err := fetchUKIURL(bootFile6, clientIP)
+	if err != nil {
+		log.Errorf("failed to fetch UKI URL: %v", err)
+		return resp, true
+	}
+
 	decap, err := req.GetInnerMessage()
 	if err != nil {
-		log.Errorf("Could not decapsulate request: %v", err)
+		log.Errorf("could not decapsulate request: %v", err)
 		return nil, true
 	}
 
@@ -66,7 +83,7 @@ func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		if strings.Contains(vc, "HTTPClient") {
 			bf := &dhcpv6.OptionGeneric{
 				OptionCode: dhcpv6.OptionBootfileURL,
-				OptionData: []byte(bootFile6),
+				OptionData: []byte(ukiURL),
 			}
 			resp.AddOption(bf)
 			vid := &dhcpv6.OptionGeneric{
@@ -85,12 +102,19 @@ func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	log.Debugf("Received DHCPv4 request: %s", req.Summary())
+
+	ukiURL, err := fetchUKIURL(bootFile4, req.ClientIPAddr)
+	if err != nil {
+		log.Errorf("failed to fetch UKI URL: %v", err)
+		return resp, true
+	}
+
 	if req.GetOneOption(dhcpv4.OptionClassIdentifier) != nil {
 		vc := req.GetOneOption(dhcpv4.OptionClassIdentifier)
 		if strings.Contains(string(vc), "HTTPClient") {
 			bf := &dhcpv4.Option{
 				Code:  dhcpv4.OptionBootfileName,
-				Value: dhcpv4.String(bootFile4),
+				Value: dhcpv4.String(ukiURL),
 			}
 			resp.Options.Update(*bf)
 			vid := &dhcpv4.Option{
@@ -101,4 +125,49 @@ func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 		}
 	}
 	return resp, false
+}
+
+func extractClientIP6(req dhcpv6.DHCPv6) (net.IP, error) {
+	if req.IsRelay() {
+		relayMsg, ok := req.(*dhcpv6.RelayMessage)
+		if !ok {
+			return nil, fmt.Errorf("failed to cast the DHCPv6 request to a RelayMessage")
+		}
+		return relayMsg.LinkAddr, nil
+	}
+	return nil, fmt.Errorf("received non-relay DHCPv6 request, client IP cannot be extracted from non-relayed messages")
+}
+
+func fetchUKIURL(url string, clientIP net.IP) (string, error) {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("X-Forwarded-For", clientIP.String())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Errorf("HTTP request failed: %v", err)
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var data struct {
+		UKIURL string `json:"UKIURL"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", err
+	}
+
+	if data.UKIURL == "" {
+		return "", fmt.Errorf("received empty UKI URL")
+	}
+
+	return data.UKIURL, nil
 }
