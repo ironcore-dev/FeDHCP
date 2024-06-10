@@ -20,6 +20,7 @@ import (
 
 var bootFile4 string
 var bootFile6 string
+var useBootService bool
 
 var log = logger.GetLogger("plugins/httpboot")
 
@@ -29,25 +30,35 @@ var Plugin = plugins.Plugin{
 	Setup4: setup4,
 }
 
-func parseArgs(args ...string) (*url.URL, error) {
+func parseArgs(args ...string) (*url.URL, bool, error) {
 	if len(args) != 1 {
-		return nil, fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
+		return nil, false, fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
 	}
-	return url.Parse(args[0])
+	arg := args[0]
+	useBootService := strings.HasPrefix(arg, "bootservice:")
+	if useBootService {
+		arg = strings.TrimPrefix(arg, "bootservice:")
+	}
+	parsedURL, err := url.Parse(arg)
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid URL: %v", err)
+	}
+	return parsedURL, useBootService, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	u, err := parseArgs(args...)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return nil, fmt.Errorf("invalid URL provided: %v", err)
+	u, usebootservice, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 	bootFile6 = u.String()
-	log.Printf("Configured httpboot plugin with URL: %s", bootFile6)
+	useBootService = usebootservice
+	log.Printf("Configured httpboot plugin with URL: %s, useBootService: %t", bootFile6, useBootService)
 	return Handler6, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	u, err := parseArgs(args...)
+	u, _, err := parseArgs(args...)
 	if err != nil {
 		return nil, err
 	}
@@ -59,16 +70,20 @@ func setup4(args ...string) (handler.Handler4, error) {
 func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
 
-	clientIPs, err := extractClientIP6(req)
-	if err != nil {
-		log.Errorf("failed to extract the ClientIP, Error: %v Request: %v ", err, req)
-		return resp, true
-	}
-
-	ukiURL, err := fetchUKIURL(bootFile6, clientIPs)
-	if err != nil {
-		log.Errorf("failed to fetch UKI URL: %v", err)
-		return resp, true
+	var ukiURL string
+	if !useBootService {
+		ukiURL = bootFile6
+	} else {
+		clientIPs, err := extractClientIP6(req)
+		if err != nil {
+			log.Errorf("failed to extract ClientIP, Error: %v Request: %v ", err, req)
+			return resp, false
+		}
+		ukiURL, err = fetchUKIURL(bootFile6, clientIPs)
+		if err != nil {
+			log.Errorf("failed to fetch UKI URL: %v", err)
+			return resp, false
+		}
 	}
 
 	decap, err := req.GetInnerMessage()
@@ -105,7 +120,7 @@ func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	ukiURL, err := fetchUKIURL(bootFile4, []string{req.ClientIPAddr.String()})
 	if err != nil {
 		log.Errorf("failed to fetch UKI URL: %v", err)
-		return resp, true
+		return resp, false
 	}
 
 	if req.GetOneOption(dhcpv4.OptionClassIdentifier) != nil {
