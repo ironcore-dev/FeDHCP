@@ -4,6 +4,7 @@
 package httpboot
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,18 +44,21 @@ func parseArgs(args ...string) (*url.URL, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("invalid URL: %v", err)
 	}
+	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.Path == "" {
+		return nil, false, fmt.Errorf("malformed iPXE parameter, should be a valid URL")
+	}
 	return parsedURL, useBootService, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	u, usebootservice, err := parseArgs(args...)
+	u, ubs, err := parseArgs(args...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 	bootFile6 = u.String()
-	useBootService = usebootservice
+	useBootService = ubs
 	log.Printf("Configured httpboot plugin with URL: %s, useBootService: %t", bootFile6, useBootService)
-	return Handler6, nil
+	return handler6, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
@@ -64,10 +68,10 @@ func setup4(args ...string) (handler.Handler4, error) {
 	}
 	bootFile4 = u.String()
 	log.Printf("loaded httpboot plugin for DHCPv4.")
-	return Handler4, nil
+	return handler4, nil
 }
 
-func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
+func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
 
 	var ukiURL string
@@ -93,28 +97,32 @@ func Handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	}
 
 	if decap.GetOneOption(dhcpv6.OptionVendorClass) != nil {
-		vc := decap.GetOneOption(dhcpv6.OptionVendorClass).String()
-		if strings.Contains(vc, "HTTPClient") {
-			bf := &dhcpv6.OptionGeneric{
-				OptionCode: dhcpv6.OptionBootfileURL,
-				OptionData: []byte(ukiURL),
-			}
+		optVendorClass := decap.GetOneOption(dhcpv6.OptionVendorClass)
+		log.Debugf("VendorClass: %s", optVendorClass.String())
+		vcc := optVendorClass.ToBytes()
+		if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == "HTTPClient" {
+			bf := dhcpv6.OptBootFileURL(ukiURL)
 			resp.AddOption(bf)
-			vid := &dhcpv6.OptionGeneric{
-				OptionCode: dhcpv6.OptionVendorClass,
-				// 0000 (4 bytes) Enterprise Identifier
-				// 0a (2 bytes) length of "HTTPClient"
-				// - rest with HTTPClient
-				OptionData: []byte("00000aHTTPClient"),
+			log.Infof("Added option BootFileURL(%d): (%s)", dhcpv6.OptionBootfileURL, ukiURL)
+
+			buf := []byte("HTTPClient")
+			vc := &dhcpv6.OptVendorClass{
+				EnterpriseNumber: 0,
+				Data:             [][]byte{buf},
 			}
-			resp.AddOption(vid)
+			resp.AddOption(vc)
+			log.Infof("Added option VendorClass %s", vc.String())
+		} else {
+			log.Errorf("non HTTPClient VendorClass %s", optVendorClass.String())
+			return resp, false
 		}
 	}
 
+	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 	return resp, false
 }
 
-func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
+func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	log.Debugf("Received DHCPv4 request: %s", req.Summary())
 
 	ukiURL, err := fetchUKIURL(bootFile4, []string{req.ClientIPAddr.String()})
@@ -124,8 +132,9 @@ func Handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	}
 
 	if req.GetOneOption(dhcpv4.OptionClassIdentifier) != nil {
-		vc := req.GetOneOption(dhcpv4.OptionClassIdentifier)
-		if strings.Contains(string(vc), "HTTPClient") {
+		ci := req.GetOneOption(dhcpv4.OptionClassIdentifier)
+		log.Debugf("ClassIdentifier: %s (%s)", string(ci), ci)
+		if strings.Contains(string(ci), "HTTPClient") {
 			bf := &dhcpv4.Option{
 				Code:  dhcpv4.OptionBootfileName,
 				Value: dhcpv4.String(ukiURL),
