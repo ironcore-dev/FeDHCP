@@ -62,12 +62,13 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	u, _, err := parseArgs(args...)
+	u, ubs, err := parseArgs(args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 	bootFile4 = u.String()
-	log.Printf("loaded httpboot plugin for DHCPv4.")
+	useBootService = ubs
+	log.Printf("Configured httpboot plugin with URL: %s, useBootService: %t", bootFile4, useBootService)
 	return handler4, nil
 }
 
@@ -125,28 +126,41 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	log.Debugf("Received DHCPv4 request: %s", req.Summary())
 
-	ukiURL, err := fetchUKIURL(bootFile4, []string{req.ClientIPAddr.String()})
-	if err != nil {
-		log.Errorf("failed to fetch UKI URL: %v", err)
-		return resp, false
+	var ukiURL string
+	var err error
+	if !useBootService {
+		ukiURL = bootFile4
+	} else {
+		ukiURL, err = fetchUKIURL(bootFile4, []string{req.ClientIPAddr.String()})
+		if err != nil {
+			log.Errorf("failed to fetch UKI URL: %v", err)
+			return resp, false
+		}
 	}
 
 	if req.GetOneOption(dhcpv4.OptionClassIdentifier) != nil {
-		ci := req.GetOneOption(dhcpv4.OptionClassIdentifier)
-		log.Debugf("ClassIdentifier: %s (%s)", string(ci), ci)
-		if strings.Contains(string(ci), "HTTPClient") {
+		cic := req.GetOneOption(dhcpv4.OptionClassIdentifier)
+		log.Debugf("ClassIdentifier: %s (%s)", string(cic), cic)
+		if len(cic) >= 10 && string(cic[0:10]) == "HTTPClient" {
 			bf := &dhcpv4.Option{
 				Code:  dhcpv4.OptionBootfileName,
 				Value: dhcpv4.String(ukiURL),
 			}
 			resp.Options.Update(*bf)
-			vid := &dhcpv4.Option{
+			log.Infof("Added option BooFileName %s", bf.String())
+
+			ci := &dhcpv4.Option{
 				Code:  dhcpv4.OptionClassIdentifier,
 				Value: dhcpv4.String("HTTPClient"),
 			}
-			resp.Options.Update(*vid)
+			resp.Options.Update(*ci)
+			log.Infof("Added option ClassIdentifier %s", ci.String())
+		} else {
+			log.Errorf("non HTTPClient ClassIdentifier %s", string(cic))
+			return resp, false
 		}
 	}
+	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
 	return resp, false
 }
 

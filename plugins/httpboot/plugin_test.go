@@ -5,6 +5,8 @@ package httpboot
 
 import (
 	"bytes"
+	"github.com/insomniacslk/dhcp/dhcpv4"
+	"net"
 	"testing"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
@@ -38,7 +40,6 @@ func Init6(bootURL string) {
 }
 
 /* parametrization */
-
 func TestWrongNumberArgs(t *testing.T) {
 	_, _, err := parseArgs("foo", "bar")
 	if err == nil {
@@ -50,6 +51,7 @@ func TestWrongNumberArgs(t *testing.T) {
 		t.Fatal("no error occurred when providing wrong number of args (0), but it should have")
 	}
 }
+
 func TestWrongArgs(t *testing.T) {
 	malformedBootURL := []string{"ftp://www.example.com/boot.uki",
 		"tftp:/www.example.com/boot.uki",
@@ -70,7 +72,7 @@ func TestWrongArgs(t *testing.T) {
 }
 
 /* IPv6 */
-func TestGenericHTTPBootRequested(t *testing.T) {
+func TestGenericHTTPBootRequested6(t *testing.T) {
 	Init6(expectedBootGenericURL)
 
 	req, err := dhcpv6.NewMessage()
@@ -128,7 +130,7 @@ func TestGenericHTTPBootRequested(t *testing.T) {
 	}
 }
 
-func TestMalformedHTTPBootRequested(t *testing.T) {
+func TestMalformedHTTPBootRequested6(t *testing.T) {
 	Init6(expectedBootGenericURL)
 
 	req, err := dhcpv6.NewMessage()
@@ -197,7 +199,7 @@ func TestMalformedHTTPBootRequested(t *testing.T) {
 	}
 }
 
-func TestHTTPBootNotRequested(t *testing.T) {
+func TestHTTPBootNotRequested6(t *testing.T) {
 	Init6(expectedBootGenericURL)
 
 	req, err := dhcpv6.NewMessage()
@@ -229,5 +231,140 @@ func TestHTTPBootNotRequested(t *testing.T) {
 	opts = resp.GetOption(dhcpv6.OptionVendorClass)
 	if len(opts) != optionDisabled {
 		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+}
+
+/* IPv4 */
+func TestGenericHTTPBootRequested4(t *testing.T) {
+	Init4(expectedBootGenericURL)
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optClassID := dhcpv4.OptClassIdentifier("HTTPClient")
+	req.UpdateOption(optClassID)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := handler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != expectedBootGenericURL {
+		t.Errorf("Found BootFileName %s, expected %s", bootFileName, expectedBootGenericURL)
+	}
+
+	ci := dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
+	if ci != string(expectedHTTPClient) {
+		t.Errorf("Found ClassIdentifier %s, expected %s", ci, string(expectedHTTPClient))
+	}
+}
+
+func TestMalformedHTTPBootRequested4(t *testing.T) {
+	Init4(expectedBootGenericURL)
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optClassID := dhcpv4.OptClassIdentifier("HTTPC")
+	req.UpdateOption(optClassID)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := handler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	emptyBootFileName := ""
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != emptyBootFileName {
+		t.Errorf("Found BootFileName %s, expected %s", bootFileName, emptyBootFileName)
+	}
+
+	emptyClassIdentifier := ""
+	ci := dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
+	if ci != emptyClassIdentifier {
+		t.Errorf("Found ClassIdentifier %s, expected %s", ci, emptyClassIdentifier)
+	}
+
+	optClassID = dhcpv4.OptClassIdentifier("HTTPFOOBAR")
+	req.UpdateOption(optClassID)
+
+	stub, err = dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop = handler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	emptyBootFileName = ""
+	bootFileName = dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != emptyBootFileName {
+		t.Errorf("Found BootFileName %s, expected %s", bootFileName, emptyBootFileName)
+	}
+
+	emptyClassIdentifier = ""
+	ci = dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
+	if ci != emptyClassIdentifier {
+		t.Errorf("Found ClassIdentifier %s, expected %s", ci, emptyClassIdentifier)
+	}
+}
+
+func TestHTTPBootNotRequested4(t *testing.T) {
+	Init4(expectedBootGenericURL)
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := handler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	emptyBootFileName := ""
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != emptyBootFileName {
+		t.Errorf("Found BootFileName %s, expected %s", bootFileName, emptyBootFileName)
+	}
+
+	emptyClassIdentifier := ""
+	ci := dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
+	if ci != emptyClassIdentifier {
+		t.Errorf("Found ClassIdentifier %s, expected %s", ci, emptyClassIdentifier)
 	}
 }
