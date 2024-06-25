@@ -47,7 +47,7 @@ func parseArgs(args ...string) (*url.URL, bool, error) {
 		return nil, false, fmt.Errorf("invalid URL: %v", err)
 	}
 	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.Path == "" {
-		return nil, false, fmt.Errorf("malformed iPXE parameter, should be a valid URL")
+		return nil, false, fmt.Errorf("malformed httpboot parameter, should be a valid HTTP(s) URL")
 	}
 	return parsedURL, useBootService, nil
 }
