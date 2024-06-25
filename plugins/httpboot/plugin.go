@@ -31,6 +31,8 @@ var Plugin = plugins.Plugin{
 	Setup4: setup4,
 }
 
+const httpClient = "HTTPClient"
+
 func parseArgs(args ...string) (*url.URL, bool, error) {
 	if len(args) != 1 {
 		return nil, false, fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
@@ -101,12 +103,12 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		optVendorClass := decap.GetOneOption(dhcpv6.OptionVendorClass)
 		log.Debugf("VendorClass: %s", optVendorClass.String())
 		vcc := optVendorClass.ToBytes()
-		if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == "HTTPClient" {
+		if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == httpClient {
 			bf := dhcpv6.OptBootFileURL(ukiURL)
 			resp.AddOption(bf)
 			log.Infof("Added option BootFileURL(%d): (%s)", dhcpv6.OptionBootfileURL, ukiURL)
 
-			buf := []byte("HTTPClient")
+			buf := []byte(httpClient)
 			vc := &dhcpv6.OptVendorClass{
 				EnterpriseNumber: 0,
 				Data:             [][]byte{buf},
@@ -141,7 +143,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	if req.GetOneOption(dhcpv4.OptionClassIdentifier) != nil {
 		cic := req.GetOneOption(dhcpv4.OptionClassIdentifier)
 		log.Debugf("ClassIdentifier: %s (%s)", string(cic), cic)
-		if len(cic) >= 10 && string(cic[0:10]) == "HTTPClient" {
+		if len(cic) >= 10 && string(cic[0:10]) == httpClient {
 			bf := &dhcpv4.Option{
 				Code:  dhcpv4.OptionBootfileName,
 				Value: dhcpv4.String(ukiURL),
@@ -151,7 +153,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 			ci := &dhcpv4.Option{
 				Code:  dhcpv4.OptionClassIdentifier,
-				Value: dhcpv4.String("HTTPClient"),
+				Value: dhcpv4.String(httpClient),
 			}
 			resp.Options.Update(*ci)
 			log.Infof("Added option ClassIdentifier %s", ci.String())
