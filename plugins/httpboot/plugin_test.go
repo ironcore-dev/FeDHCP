@@ -5,9 +5,17 @@ package httpboot
 
 import (
 	"bytes"
-	"github.com/insomniacslk/dhcp/dhcpv4"
+	"encoding/json"
+	"fmt"
 	"net"
+	"net/http"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/insomniacslk/dhcp/iana"
+
+	"github.com/insomniacslk/dhcp/dhcpv4"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
 )
@@ -16,9 +24,12 @@ const (
 	optionDisabled = iota
 	optionEnabled
 	optionMultiple
-	expectedBootGenericURL   = "https://[2001:db8::1]/boot.uki"
-	expectedBootCustomURL    = "bootservice:https://[2001:db8::1]/boot.uki"
-	expectedEnterpriseNumber = 0
+	expectedGenericBootURL       = "https://[2001:db8::1]/boot.uki"
+	expectedCustomBootURL        = "https://[2001:db8::1]/client-specific/boot.uki"
+	expectedDefaultCustomBootURL = "https://[2001:db8::1]/default.uki"
+	bootServiceEndpoint          = "bootservice:http://[::1]:%d/httpboot"
+	expectedEnterpriseNumber     = 0
+	bootServicePort              = 8888
 )
 
 var (
@@ -73,7 +84,7 @@ func TestWrongArgs(t *testing.T) {
 
 /* IPv6 */
 func TestGenericHTTPBootRequested6(t *testing.T) {
-	Init6(expectedBootGenericURL)
+	Init6(expectedGenericBootURL)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -110,8 +121,8 @@ func TestGenericHTTPBootRequested6(t *testing.T) {
 	}
 
 	bootFileURL := resp.(*dhcpv6.Message).Options.BootFileURL()
-	if bootFileURL != expectedBootGenericURL {
-		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, expectedBootGenericURL)
+	if bootFileURL != expectedGenericBootURL {
+		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, expectedGenericBootURL)
 	}
 
 	opts = resp.GetOption(dhcpv6.OptionVendorClass)
@@ -131,7 +142,7 @@ func TestGenericHTTPBootRequested6(t *testing.T) {
 }
 
 func TestMalformedHTTPBootRequested6(t *testing.T) {
-	Init6(expectedBootGenericURL)
+	Init6(expectedGenericBootURL)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -142,7 +153,7 @@ func TestMalformedHTTPBootRequested6(t *testing.T) {
 	optVendorClass := dhcpv6.OptVendorClass{}
 	buf := []byte{
 		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
-		0, 5, // WRONG LENGHT!
+		0, 5, // WRONG LENGTH!
 		'H', 'T', 'T', 'P', 'C', 'l', 'i', 'e', 'n', 't', // vendor class
 	}
 	_ = optVendorClass.FromBytes(buf)
@@ -200,7 +211,42 @@ func TestMalformedHTTPBootRequested6(t *testing.T) {
 }
 
 func TestHTTPBootNotRequested6(t *testing.T) {
-	Init6(expectedBootGenericURL)
+	Init6(expectedGenericBootURL)
+
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
+	if len(opts) != optionDisabled {
+		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+
+	opts = resp.GetOption(dhcpv6.OptionVendorClass)
+	if len(opts) != optionDisabled {
+		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+}
+
+func TestHTTPBootNotRelayedMsg6(t *testing.T) {
+	Init6(expectedGenericBootURL)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -236,7 +282,7 @@ func TestHTTPBootNotRequested6(t *testing.T) {
 
 /* IPv4 */
 func TestGenericHTTPBootRequested4(t *testing.T) {
-	Init4(expectedBootGenericURL)
+	Init4(expectedGenericBootURL)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
 	if err != nil {
@@ -260,8 +306,8 @@ func TestGenericHTTPBootRequested4(t *testing.T) {
 	}
 
 	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
-	if bootFileName != expectedBootGenericURL {
-		t.Errorf("Found BootFileName %s, expected %s", bootFileName, expectedBootGenericURL)
+	if bootFileName != expectedGenericBootURL {
+		t.Errorf("Found BootFileName %s, expected %s", bootFileName, expectedGenericBootURL)
 	}
 
 	ci := dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
@@ -271,7 +317,7 @@ func TestGenericHTTPBootRequested4(t *testing.T) {
 }
 
 func TestMalformedHTTPBootRequested4(t *testing.T) {
-	Init4(expectedBootGenericURL)
+	Init4(expectedGenericBootURL)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
 	if err != nil {
@@ -336,7 +382,7 @@ func TestMalformedHTTPBootRequested4(t *testing.T) {
 }
 
 func TestHTTPBootNotRequested4(t *testing.T) {
-	Init4(expectedBootGenericURL)
+	Init4(expectedGenericBootURL)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
 	if err != nil {
@@ -366,5 +412,316 @@ func TestHTTPBootNotRequested4(t *testing.T) {
 	ci := dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
 	if ci != emptyClassIdentifier {
 		t.Errorf("Found ClassIdentifier %s, expected %s", ci, emptyClassIdentifier)
+	}
+}
+
+/* client-specific tests */
+func TestCustomHTTPBootRequestedKnownIP(t *testing.T) {
+	go startBootServiceMock()
+	time.Sleep(time.Second * 1)
+
+	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optVendorClass := dhcpv6.OptVendorClass{}
+	buf := []byte{
+		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
+		0, 10, // length ot vendor class
+		'H', 'T', 'T', 'P', 'C', 'l', 'i', 'e', 'n', 't', // vendor class
+	}
+	_ = optVendorClass.FromBytes(buf)
+	req.UpdateOption(&optVendorClass)
+
+	// known LinkAddr
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// not known LinkLayerAddress
+	macAddress, _ := net.ParseMAC("11:22:33:44:55:66")
+	opt := dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, macAddress)
+	relayedRequest.AddOption(opt)
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(relayedRequest, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
+	if len(opts) != optionEnabled {
+		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionEnabled, len(opts), opts)
+	}
+
+	bootFileURL := resp.(*dhcpv6.Message).Options.BootFileURL()
+	if bootFileURL != expectedCustomBootURL {
+		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, expectedCustomBootURL)
+	}
+
+	opts = resp.GetOption(dhcpv6.OptionVendorClass)
+	if len(opts) != optionEnabled {
+		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionEnabled, len(opts), opts)
+	}
+
+	vc := resp.(*dhcpv6.Message).Options.VendorClasses()[0]
+	if vc.EnterpriseNumber != expectedEnterpriseNumber {
+		t.Errorf("Found EnterpriseNumber %d, expected %d", vc.EnterpriseNumber, expectedEnterpriseNumber)
+	}
+
+	vcData := resp.(*dhcpv6.Message).Options.VendorClass(vc.EnterpriseNumber)
+	if !bytes.Equal(vcData[0], expectedHTTPClient) {
+		t.Errorf("Found VendorClass %x, expected %x", vcData[0], expectedHTTPClient)
+	}
+}
+
+func TestCustomHTTPBootRequestedKnownMAC(t *testing.T) {
+	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optVendorClass := dhcpv6.OptVendorClass{}
+	buf := []byte{
+		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
+		0, 10, // length ot vendor class
+		'H', 'T', 'T', 'P', 'C', 'l', 'i', 'e', 'n', 't', // vendor class
+	}
+	_ = optVendorClass.FromBytes(buf)
+	req.UpdateOption(&optVendorClass)
+
+	// not known LinkAddr
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// known LinkLayerAddress
+	macAddress, _ := net.ParseMAC("aa:bb:cc:dd:ee:ff")
+	opt := dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, macAddress)
+	relayedRequest.AddOption(opt)
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(relayedRequest, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
+	if len(opts) != optionEnabled {
+		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionEnabled, len(opts), opts)
+	}
+
+	bootFileURL := resp.(*dhcpv6.Message).Options.BootFileURL()
+	if bootFileURL != expectedCustomBootURL {
+		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, expectedCustomBootURL)
+	}
+
+	opts = resp.GetOption(dhcpv6.OptionVendorClass)
+	if len(opts) != optionEnabled {
+		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionEnabled, len(opts), opts)
+	}
+
+	vc := resp.(*dhcpv6.Message).Options.VendorClasses()[0]
+	if vc.EnterpriseNumber != expectedEnterpriseNumber {
+		t.Errorf("Found EnterpriseNumber %d, expected %d", vc.EnterpriseNumber, expectedEnterpriseNumber)
+	}
+
+	vcData := resp.(*dhcpv6.Message).Options.VendorClass(vc.EnterpriseNumber)
+	if !bytes.Equal(vcData[0], expectedHTTPClient) {
+		t.Errorf("Found VendorClass %x, expected %x", vcData[0], expectedHTTPClient)
+	}
+}
+
+func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
+	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optVendorClass := dhcpv6.OptVendorClass{}
+	buf := []byte{
+		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
+		0, 10, // length ot vendor class
+		'H', 'T', 'T', 'P', 'C', 'l', 'i', 'e', 'n', 't', // vendor class
+	}
+	_ = optVendorClass.FromBytes(buf)
+	req.UpdateOption(&optVendorClass)
+
+	// not known LinkAddr
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// not known LinkLayerAddress
+	macAddress, _ := net.ParseMAC("11:22:33:44:55:66")
+	opt := dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, macAddress)
+	relayedRequest.AddOption(opt)
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(relayedRequest, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
+	if len(opts) != optionEnabled {
+		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionEnabled, len(opts), opts)
+	}
+
+	bootFileURL := resp.(*dhcpv6.Message).Options.BootFileURL()
+	if bootFileURL != expectedDefaultCustomBootURL {
+		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, expectedDefaultCustomBootURL)
+	}
+
+	opts = resp.GetOption(dhcpv6.OptionVendorClass)
+	if len(opts) != optionEnabled {
+		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionEnabled, len(opts), opts)
+	}
+
+	vc := resp.(*dhcpv6.Message).Options.VendorClasses()[0]
+	if vc.EnterpriseNumber != expectedEnterpriseNumber {
+		t.Errorf("Found EnterpriseNumber %d, expected %d", vc.EnterpriseNumber, expectedEnterpriseNumber)
+	}
+
+	vcData := resp.(*dhcpv6.Message).Options.VendorClass(vc.EnterpriseNumber)
+	if !bytes.Equal(vcData[0], expectedHTTPClient) {
+		t.Errorf("Found VendorClass %x, expected %x", vcData[0], expectedHTTPClient)
+	}
+}
+
+func TestNoRelayCustomHTTPBootRequested(t *testing.T) {
+	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optVendorClass := dhcpv6.OptVendorClass{}
+	buf := []byte{
+		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
+		0, 10, // length ot vendor class
+		'H', 'T', 'T', 'P', 'C', 'l', 'i', 'e', 'n', 't', // vendor class
+	}
+	_ = optVendorClass.FromBytes(buf)
+	req.UpdateOption(&optVendorClass)
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
+	if len(opts) != optionDisabled {
+		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+
+	opts = resp.GetOption(dhcpv6.OptionVendorClass)
+	if len(opts) != optionDisabled {
+		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+}
+
+func startBootServiceMock() {
+	// Set up a simple HTTP server
+	http.HandleFunc("/httpboot", httpHandler)
+
+	fmt.Printf("Starting server at port %d", bootServicePort)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", bootServicePort), nil); err != nil {
+		panic("All ports are already in use")
+	}
+}
+
+func httpHandler(w http.ResponseWriter, r *http.Request) {
+	// Get the X-Forwarded-For header
+	xff := r.Header.Get("X-Forwarded-For")
+
+	clientIPs := strings.Split(xff, ", ")
+	httpBootResponseData := make(map[string]string)
+
+	goon := true
+	for _, clientIP := range clientIPs {
+		if !goon {
+			break
+		}
+
+		switch clientIP {
+		case "::1":
+			log.Printf("Match for client IP '%s' found", clientIP)
+			httpBootResponseData["ClientIPs"] = strings.Join(clientIPs, ", ")
+			httpBootResponseData["UKIURL"] = expectedCustomBootURL
+			goon = false
+		case "aa:bb:cc:dd:ee:ff":
+			log.Printf("Match for client MAC '%s' found", clientIP)
+			httpBootResponseData["ClientIPs"] = strings.Join(clientIPs, ", ")
+			httpBootResponseData["UKIURL"] = expectedCustomBootURL
+			goon = false
+		default:
+			log.Printf("Client IP/MAC '%s' does not match", clientIP)
+		}
+	}
+
+	if len(httpBootResponseData) == 0 {
+		log.Printf("Delivering default UKI image")
+		httpBootResponseData["ClientIPs"] = strings.Join(clientIPs, ", ")
+		httpBootResponseData["UKIURL"] = expectedDefaultCustomBootURL
+	}
+
+	// Generate response based on the X-Forwarded-For header
+	response, err := json.Marshal(httpBootResponseData)
+	if err != nil {
+		log.Error(err, "Failed to marshal response data")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(response); err != nil {
+		log.Error(err, "Failed to write response")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
