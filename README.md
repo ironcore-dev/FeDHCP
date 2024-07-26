@@ -37,7 +37,7 @@ A single HTTP(s) URL shall be passed as a string. It must be either
 The IPAM plugin acts as a Kubernetes persistence plugin for IronCore's in-band network. Thus, it's meant to be used in combination with the `onmetal` plugin only. Those two may be consolidated in the future into a new plugin called `inband`.
 
 The IPAM plugin does not modify DHCP responses to the client, it rather creates (or updates) IP objects in Kubernetes. For each created IP object, the in-band plugin `onmetal` will lease an IP address to the client. Due to the nature of the IronCore's in-band network - `/127` client networks connected to each switch port - the IP object created has and address calculated by a simple "plus one" rule. In such a way each client gets a "plus one" of the switch port address it is connected to.
-##  Configuration
+###  Configuration
 A kubernetes namespace shall be passed as a string. All IPAM processing (subnet identification, IP object creation/update) are done in that namespace.
 Further, as a second parameter, a comma-separated list of subnet names shall be passed. The IPAM plugin will do the subnet creation based on the IP address of the object to be created as well as on the vacant range of the corresponding subnet.
 ### Notes
