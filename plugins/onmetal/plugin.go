@@ -4,6 +4,7 @@
 package onmetal
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -20,7 +21,15 @@ var Plugin = plugins.Plugin{
 	Setup6: setup6,
 }
 
+const (
+	preferredLifeTime = 24 * time.Hour
+	validLifeTime     = 24 * time.Hour
+)
+
 func setup6(args ...string) (handler.Handler6, error) {
+	if len(args) != 0 {
+		return nil, fmt.Errorf("no arguments expected, got %d", len(args))
+	}
 	log.Printf("loaded onmetal plugin for DHCPv6.")
 
 	return handler6, nil
@@ -56,8 +65,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
 				IPv6Addr:          ipaddr,
-				PreferredLifetime: 24 * time.Hour,
-				ValidLifetime:     24 * time.Hour,
+				PreferredLifetime: preferredLifeTime,
+				ValidLifetime:     validLifeTime,
 			},
 		}},
 	})
