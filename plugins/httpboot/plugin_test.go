@@ -51,6 +51,7 @@ func Init6(bootURL string) {
 }
 
 /* parametrization */
+
 func TestWrongNumberArgs(t *testing.T) {
 	_, _, err := parseArgs("foo", "bar")
 	if err == nil {
