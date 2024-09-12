@@ -15,12 +15,10 @@ import (
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"github.com/mdlayher/netx/eui64"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"net"
 	"net/netip"
 	"os"
 	controllerruntime "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
 
@@ -36,7 +34,6 @@ var (
 	config *api.Machines
 	// map MAC address to machine name
 	machineMap = make(map[string]string)
-	kubeClient client.Client
 )
 
 // args[0] = path to configuration file
@@ -150,18 +147,7 @@ func ApplyEndpointForMachine(name string, mac net.HardwareAddr, ip *netip.Addr) 
 		log.Info("No IP address specified. Skipping.")
 		return nil
 	}
-	scheme := runtime.NewScheme()
-	if err := metalv1alpha1.AddToScheme(scheme); err != nil {
-		return err
-	}
 
-	if kubeClient == nil {
-		var err error
-		kubeClient, err = kubernetes.NewClient(scheme)
-		if err != nil {
-			return fmt.Errorf("failed to create kubernetes client: %v", err)
-		}
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -175,7 +161,12 @@ func ApplyEndpointForMachine(name string, mac net.HardwareAddr, ip *netip.Addr) 
 		},
 	}
 
-	if _, err := controllerruntime.CreateOrUpdate(ctx, kubeClient, endpoint, func() error { return nil }); err != nil {
+	cl := kubernetes.GetClient()
+	if cl == nil {
+		return fmt.Errorf("kubernetes client not initialized")
+	}
+
+	if _, err := controllerruntime.CreateOrUpdate(ctx, cl, endpoint, func() error { return nil }); err != nil {
 		return fmt.Errorf("failed to apply endpoint: %v", err)
 	}
 
@@ -183,22 +174,16 @@ func ApplyEndpointForMachine(name string, mac net.HardwareAddr, ip *netip.Addr) 
 }
 
 func GetIPForMACAddress(mac net.HardwareAddr) (*netip.Addr, error) {
-	scheme := runtime.NewScheme()
-	if err := ipamv1alpha1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-	var err error
-	if kubeClient == nil {
-		kubeClient, err = kubernetes.NewClient(scheme)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create kubernetes client: %v", err)
-		}
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	cl := kubernetes.GetClient()
+	if cl == nil {
+		return nil, fmt.Errorf("kubernetes client not initialized")
+	}
+
 	ips := &ipamv1alpha1.IPList{}
-	if err := kubeClient.List(ctx, ips); err != nil {
+	if err := cl.List(ctx, ips); err != nil {
 		return nil, fmt.Errorf("failed to list IPs: %v", err)
 	}
 

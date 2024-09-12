@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	"io"
 	"os"
 	"time"
@@ -126,6 +127,11 @@ func main() {
 		if err := plugins.RegisterPlugin(plugin); err != nil {
 			log.Fatalf("Failed to register plugin '%s': %v", plugin.Name, err)
 		}
+	}
+
+	// initialize kubernetes client
+	if err := kubernetes.InitClient(); err != nil {
+		log.Fatalf("Failed to initialize kubernetes client: %v", err)
 	}
 
 	// start server

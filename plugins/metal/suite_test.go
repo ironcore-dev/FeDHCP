@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ironcore-dev/controller-utils/modutils"
 	"github.com/ironcore-dev/fedhcp/internal/api"
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	"path/filepath"
 	"runtime"
@@ -92,7 +93,7 @@ var _ = BeforeSuite(func() {
 	SetClient(k8sClient)
 
 	// assign global k8s client in plugin
-	kubeClient = k8sClient
+	kubernetes.SetClient(&k8sClient)
 })
 
 func SetupTest() *corev1.Namespace {
