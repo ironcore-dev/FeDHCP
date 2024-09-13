@@ -45,13 +45,14 @@ func parseArgs(args ...string) (string, error) {
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	if err := loadConfig(args); err != nil {
+	if err := loadConfig(args...); err != nil {
 		return nil, err
 	}
 	return handler6, nil
 }
 
-func loadConfig(args []string) error {
+func loadConfig(args ...string) error {
+	fmt.Print("loading metal config")
 	path, err := parseArgs(args...)
 	if err != nil {
 		return fmt.Errorf("invalid configuration: %v", err)
@@ -74,7 +75,7 @@ func loadConfig(args []string) error {
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	if err := loadConfig(args); err != nil {
+	if err := loadConfig(args...); err != nil {
 		return nil, err
 	}
 	return handler4, nil
@@ -119,7 +120,6 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 }
 
 func applyEndpointForMACAddress(mac net.HardwareAddr) error {
-	log.Infof("MachineMap: %v", machineMap)
 	machineName, ok := machineMap[mac.String()]
 	if !ok {
 		// done here, next plugin

@@ -31,9 +31,13 @@ import (
 )
 
 const (
-	pollingInterval      = 50 * time.Millisecond
-	eventuallyTimeout    = 3 * time.Second
-	consistentlyDuration = 1 * time.Second
+	pollingInterval                   = 50 * time.Millisecond
+	eventuallyTimeout                 = 3 * time.Second
+	consistentlyDuration              = 1 * time.Second
+	machineWithIPAddressName          = "machine-with-ip-address"
+	machineWithoutIPAddressName       = "machine-without-ip-address"
+	machineWithIPAddressMACAddress    = "11:22:33:44:55:66"
+	machineWithoutIPAddressMACAddress = "47:11:47:11:47:11"
 )
 
 var (
@@ -111,8 +115,12 @@ func SetupTest() *corev1.Namespace {
 		config = &api.Machines{
 			MachineList: []api.Machine{
 				{
-					Name:       "foo",
-					MacAddress: "11:22:33:44:55:66",
+					Name:       machineWithIPAddressName,
+					MacAddress: machineWithIPAddressMACAddress,
+				},
+				{
+					Name:       machineWithoutIPAddressName,
+					MacAddress: machineWithoutIPAddressMACAddress,
 				},
 			},
 		}
