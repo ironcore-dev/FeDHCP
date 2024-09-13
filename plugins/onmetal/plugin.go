@@ -21,9 +21,12 @@ var Plugin = plugins.Plugin{
 	Setup6: setup6,
 }
 
+var mask80 = net.CIDRMask(prefixLength, 128)
+
 const (
 	preferredLifeTime = 24 * time.Hour
 	validLifeTime     = 24 * time.Hour
+	prefixLength      = 80
 )
 
 func setup6(args ...string) (handler.Handler6, error) {
@@ -60,7 +63,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return resp, false
 	}
 
-	resp.AddOption(&dhcpv6.OptIANA{
+	iana := &dhcpv6.OptIANA{
 		IaId: m.Options.OneIANA().IaId,
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
@@ -69,7 +72,38 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 				ValidLifetime:     validLifeTime,
 			},
 		}},
-	})
+	}
+	resp.AddOption(iana)
+	log.Infof("Added option IA prefix %s", iana.String())
+
+	optIAPD := m.Options.OneIAPD()
+	T1 := preferredLifeTime
+	T2 := validLifeTime
+
+	if optIAPD != nil {
+		if optIAPD.T1 != 0 {
+			T1 = optIAPD.T1
+		}
+		if optIAPD.T2 != 0 {
+			T2 = optIAPD.T2
+		}
+		iapd := &dhcpv6.OptIAPD{
+			IaId: optIAPD.IaId,
+			T1:   T1,
+			T2:   T2,
+			Options: dhcpv6.PDOptions{Options: dhcpv6.Options{&dhcpv6.OptIAPrefix{
+				PreferredLifetime: preferredLifeTime,
+				ValidLifetime:     validLifeTime,
+				Prefix: &net.IPNet{
+					Mask: mask80,
+					IP:   ipaddr.Mask(mask80),
+				},
+				Options: dhcpv6.PrefixOptions{Options: dhcpv6.Options{}},
+			}}},
+		}
+		resp.UpdateOption(iapd)
+		log.Infof("Added option IA prefix %s", iapd.String())
+	}
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 
