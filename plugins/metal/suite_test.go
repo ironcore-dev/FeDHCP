@@ -38,6 +38,8 @@ const (
 	machineWithoutIPAddressName       = "machine-without-ip-address"
 	machineWithIPAddressMACAddress    = "11:22:33:44:55:66"
 	machineWithoutIPAddressMACAddress = "47:11:47:11:47:11"
+	unknownMachineMACAddress          = "11:11:11:11:11:11"
+	linkLocalIPV6Prefix               = "fe80::"
 )
 
 var (

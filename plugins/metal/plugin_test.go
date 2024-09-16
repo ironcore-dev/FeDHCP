@@ -6,6 +6,7 @@ import (
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
+	"github.com/mdlayher/netx/eui64"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +16,7 @@ import (
 	"net"
 	"os"
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
+	"strings"
 )
 
 var _ = Describe("Endpoint", func() {
@@ -22,14 +24,22 @@ var _ = Describe("Endpoint", func() {
 
 	BeforeEach(func(ctx SpecContext) {
 		By("Creating an IPAM IP object")
-		ipaddr, err := ipamv1alpha1.IPAddrFromString("fe80::1322:33ff:fe44:5566")
+		mac := machineWithIPAddressMACAddress
+		m, err := net.ParseMAC(mac)
+		Expect(err).NotTo(HaveOccurred())
+		i := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, err := eui64.ParseMAC(i, m)
+		Expect(err).NotTo(HaveOccurred())
+
+		sanitizedMAC := strings.Replace(mac, ":", "", -1)
+		ipaddr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
 		Expect(err).NotTo(HaveOccurred())
 		ip := &ipamv1alpha1.IP{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:    ns.Name,
 				GenerateName: "test-",
 				Labels: map[string]string{
-					"mac": "112233445566",
+					"mac": sanitizedMAC,
 				},
 			},
 			Spec: ipamv1alpha1.IPSpec{
@@ -99,9 +109,13 @@ var _ = Describe("Endpoint", func() {
 
 	/* IPv6 */
 	It("Should create an endpoint for IPv6 DHCP request from a known machine with IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
 		req, _ := dhcpv6.NewMessage()
 		req.MessageType = dhcpv6.MessageTypeRequest
-		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.ParseIP("fe80::1322:33ff:fe44:5566"))
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
 
 		stub, _ := dhcpv6.NewMessage()
 		stub.MessageType = dhcpv6.MessageTypeReply
@@ -115,15 +129,27 @@ var _ = Describe("Endpoint", func() {
 
 		Eventually(Object(endpoint)).Should(SatisfyAll(
 			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
-			HaveField("Spec.IP", metalv1alpha1.MustParseIP("fe80::1322:33ff:fe44:5566"))))
+			HaveField("Spec.IP", metalv1alpha1.MustParseIP(linkLocalIPV6Addr.String()))))
 
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
+	It("Should not return an IP address for a known machine without IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+
+		ip, err := GetIPForMACAddress(mac)
+		Eventually(err).Should(BeNil())
+		Eventually(ip).Should(BeNil())
+	})
+
 	It("Should not create an endpoint for IPv6 DHCP request from a known machine without IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
 		req, _ := dhcpv6.NewMessage()
 		req.MessageType = dhcpv6.MessageTypeRequest
-		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.ParseIP("fe80::4511:47ff:fe11:4711"))
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
 
 		stub, _ := dhcpv6.NewMessage()
 		stub.MessageType = dhcpv6.MessageTypeReply
@@ -144,9 +170,13 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(unknownMachineMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
 		req, _ := dhcpv6.NewMessage()
 		req.MessageType = dhcpv6.MessageTypeRequest
-		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.ParseIP("fe80::1311:11ff:fe11:1111"))
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
 
 		stub, _ := dhcpv6.NewMessage()
 		stub.MessageType = dhcpv6.MessageTypeReply
