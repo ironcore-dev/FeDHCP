@@ -92,6 +92,7 @@ var _ = Describe("Endpoint", func() {
 			fmt.Println("Error creating file:", err)
 			return
 		}
+		defer os.Remove(malformedJson)
 		defer file.Close()
 
 		// Encode the map as JSON and write it to the file
