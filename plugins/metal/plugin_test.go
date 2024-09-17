@@ -95,10 +95,8 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	It("Should return error if config file does not exist", func() {
-		Expect(func() error {
-			err := loadConfig("do-not-exist.json")
-			return err
-		}).ShouldNot(BeNil())
+		err := loadConfig("does-not-exist.json")
+		Expect(err).NotTo(BeNil())
 	})
 
 	It("Should return empty machine list if the config file is malformed", func() {
