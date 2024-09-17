@@ -40,6 +40,7 @@ const (
 	machineWithoutIPAddressMACAddress = "47:11:47:11:47:11"
 	unknownMachineMACAddress          = "11:11:11:11:11:11"
 	linkLocalIPV6Prefix               = "fe80::"
+	privateIPV4Address                = "192.168.47.11"
 )
 
 var (

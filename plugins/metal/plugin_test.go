@@ -3,6 +3,7 @@ package metal
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
@@ -23,7 +24,7 @@ var _ = Describe("Endpoint", func() {
 	ns := SetupTest()
 
 	BeforeEach(func(ctx SpecContext) {
-		By("Creating an IPAM IP object")
+		By("Creating an IPAM IP objects")
 		mac := machineWithIPAddressMACAddress
 		m, err := net.ParseMAC(mac)
 		Expect(err).NotTo(HaveOccurred())
@@ -32,9 +33,9 @@ var _ = Describe("Endpoint", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		sanitizedMAC := strings.Replace(mac, ":", "", -1)
-		ipaddr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
+		ipv6Addr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
 		Expect(err).NotTo(HaveOccurred())
-		ip := &ipamv1alpha1.IP{
+		ipv6 := &ipamv1alpha1.IP{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:    ns.Name,
 				GenerateName: "test-",
@@ -46,14 +47,39 @@ var _ = Describe("Endpoint", func() {
 				Subnet: corev1.LocalObjectReference{
 					Name: "foo",
 				},
-				IP: ipaddr,
+				IP: ipv6Addr,
 			},
 		}
-		Expect(k8sClient.Create(ctx, ip)).To(Succeed())
-		DeferCleanup(k8sClient.Delete, ip)
+		Expect(k8sClient.Create(ctx, ipv6)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ipv6)
 
-		Eventually(UpdateStatus(ip, func() {
-			ip.Status.Reserved = ipaddr
+		Eventually(UpdateStatus(ipv6, func() {
+			ipv6.Status.Reserved = ipv6Addr
+		})).Should(Succeed())
+
+		ipv4Addr, err := ipamv1alpha1.IPAddrFromString(privateIPV4Address)
+		Expect(err).NotTo(HaveOccurred())
+		ipv4 := &ipamv1alpha1.IP{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:    ns.Name,
+				GenerateName: "test-",
+				Labels: map[string]string{
+					"mac": sanitizedMAC,
+				},
+			},
+			Spec: ipamv1alpha1.IPSpec{
+				Subnet: corev1.LocalObjectReference{
+					Name: "bar",
+				},
+				IP: ipv4Addr,
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, ipv4)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ipv4)
+
+		Eventually(UpdateStatus(ipv4, func() {
+			ipv4.Status.Reserved = ipv4Addr
 		})).Should(Succeed())
 	})
 
@@ -138,7 +164,7 @@ var _ = Describe("Endpoint", func() {
 	It("Should not return an IP address for a known machine without IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
 
-		ip, err := GetIPForMACAddress(mac)
+		ip, err := GetIPForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType)
 		Eventually(err).Should(BeNil())
 		Eventually(ip).Should(BeNil())
 	})
@@ -184,7 +210,7 @@ var _ = Describe("Endpoint", func() {
 		_, _ = handler6(relayedRequest, stub)
 
 		epName := types.NamespacedName{
-			Name: "foo",
+			Name: machineWithIPAddressName,
 		}
 		endpoint := &metalv1alpha1.Endpoint{}
 
@@ -207,5 +233,71 @@ var _ = Describe("Endpoint", func() {
 
 		Eventually(resp).Should(BeNil())
 		Eventually(breakChain).Should(BeTrue())
+	})
+
+	/* IPv4 */
+	It("Should create an endpoint for IPv4 DHCP request from a known machine with IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+
+		req, _ := dhcpv4.NewDiscovery(mac)
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		_, _ = handler4(req, stub)
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+		}
+
+		Eventually(Object(endpoint)).Should(SatisfyAll(
+			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+			HaveField("Spec.IP", metalv1alpha1.MustParseIP(privateIPV4Address))))
+
+		DeferCleanup(k8sClient.Delete, endpoint)
+	})
+
+	It("Should not create an endpoint for IPv4 DHCP request from a known machine without IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+
+		req, _ := dhcpv4.NewDiscovery(mac)
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		_, _ = handler4(req, stub)
+
+		epName := types.NamespacedName{
+			Name: machineWithoutIPAddressName,
+		}
+		endpoint := &metalv1alpha1.Endpoint{}
+
+		Eventually(func() error {
+			return k8sClient.Get(ctx, epName, endpoint)
+		}).ShouldNot(Succeed())
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, epName, endpoint)
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
+	})
+
+	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(unknownMachineMACAddress)
+
+		req, _ := dhcpv4.NewDiscovery(mac)
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		_, _ = handler4(req, stub)
+
+		epName := types.NamespacedName{
+			Name: machineWithIPAddressName,
+		}
+		endpoint := &metalv1alpha1.Endpoint{}
+
+		Eventually(func() error {
+			return k8sClient.Get(ctx, epName, endpoint)
+		}).ShouldNot(Succeed())
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, epName, endpoint)
+			return apierrors.IsNotFound(err)
+		}).Should(BeTrue())
 	})
 })

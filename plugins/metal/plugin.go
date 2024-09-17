@@ -96,7 +96,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if err := applyEndpointForMACAddress(mac); err != nil {
+	if err := applyEndpointForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 		return resp, false
 	}
@@ -110,7 +110,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	mac := req.ClientHWAddr
 
-	if err := applyEndpointForMACAddress(mac); err != nil {
+	if err := applyEndpointForMACAddress(mac, ipamv1alpha1.CIPv4SubnetType); err != nil {
 		log.Errorf("Could not apply peer address: %s", err)
 		return resp, false
 	}
@@ -119,14 +119,14 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	return resp, false
 }
 
-func applyEndpointForMACAddress(mac net.HardwareAddr) error {
+func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
 	machineName, ok := machineMap[mac.String()]
 	if !ok {
 		// done here, next plugin
 		return fmt.Errorf("unknown machine MAC address: %s", mac.String())
 	}
 
-	ip, err := GetIPForMACAddress(mac)
+	ip, err := GetIPForMACAddress(mac, subnetFamily)
 	if err != nil {
 		return fmt.Errorf("could not get IP for MAC address %s: %s", mac.String(), err)
 	}
@@ -173,7 +173,7 @@ func ApplyEndpointForMachine(name string, mac net.HardwareAddr, ip *netip.Addr) 
 	return nil
 }
 
-func GetIPForMACAddress(mac net.HardwareAddr) (*netip.Addr, error) {
+func GetIPForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) (*netip.Addr, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -189,10 +189,17 @@ func GetIPForMACAddress(mac net.HardwareAddr) (*netip.Addr, error) {
 
 	sanitizedMAC := strings.Replace(mac.String(), ":", "", -1)
 	for _, ip := range ips.Items {
-		if ip.Labels["mac"] == sanitizedMAC {
+		if ip.Labels["mac"] == sanitizedMAC && ipFamilyMatches(ip, subnetFamily) {
 			return &ip.Status.Reserved.Net, nil
 		}
 	}
 
 	return nil, nil
+}
+
+func ipFamilyMatches(ip ipamv1alpha1.IP, subnetFamily ipamv1alpha1.SubnetAddressType) bool {
+	ipAddr := ip.Status.Reserved.String()
+
+	return strings.Contains(ipAddr, ":") && subnetFamily == "IPv6" ||
+		strings.Contains(ipAddr, ".") && subnetFamily == "IPv4"
 }
