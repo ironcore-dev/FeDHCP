@@ -84,18 +84,33 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	/* parametrization */
-	It("Should return error if less arguments are provided", func() {
-		err := loadConfig()
+	It("Setup6 should return error if less arguments are provided", func() {
+		_, err := setup6()
 		Expect(err).NotTo(BeNil())
 	})
 
-	It("Should return error if more arguments are provided", func() {
-		err := loadConfig("foo", "bar")
+	It("Setup6 should return error if more arguments are provided", func() {
+		_, err := setup6("foo", "bar")
 		Expect(err).NotTo(BeNil())
 	})
 
-	It("Should return error if config file does not exist", func() {
-		err := loadConfig("does-not-exist.json")
+	It("Setup6 should return error if config file does not exist", func() {
+		_, err := setup6("does-not-exist.json")
+		Expect(err).NotTo(BeNil())
+	})
+
+	It("Setup4 should return error if less arguments are provided", func() {
+		_, err := setup4()
+		Expect(err).NotTo(BeNil())
+	})
+
+	It("Setup4 should return error if more arguments are provided", func() {
+		_, err := setup4("foo", "bar")
+		Expect(err).NotTo(BeNil())
+	})
+
+	It("Setup4 should return error if config file does not exist", func() {
+		_, err := setup4("does-not-exist.json")
 		Expect(err).NotTo(BeNil())
 	})
 
