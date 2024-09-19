@@ -5,10 +5,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	"io"
 	"os"
 	"time"
+
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 
 	"github.com/coredhcp/coredhcp/config"
 	"github.com/coredhcp/coredhcp/logger"

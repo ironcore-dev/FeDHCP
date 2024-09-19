@@ -5,6 +5,10 @@ package metal
 
 import (
 	"encoding/json"
+	"net"
+	"os"
+	"strings"
+
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -16,10 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net"
-	"os"
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
-	"strings"
 )
 
 var _ = Describe("Endpoint", func() {

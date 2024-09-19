@@ -7,6 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/netip"
+	"os"
+	"strings"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
@@ -18,11 +23,7 @@ import (
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"github.com/mdlayher/netx/eui64"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net"
-	"net/netip"
-	"os"
 	controllerruntime "sigs.k8s.io/controller-runtime"
-	"strings"
 )
 
 var log = logger.GetLogger("plugins/metal")

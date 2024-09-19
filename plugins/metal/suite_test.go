@@ -5,14 +5,15 @@ package metal
 
 import (
 	"fmt"
-	"github.com/ironcore-dev/controller-utils/modutils"
-	"github.com/ironcore-dev/fedhcp/internal/api"
-	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
-	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/ironcore-dev/controller-utils/modutils"
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

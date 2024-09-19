@@ -5,6 +5,7 @@ package kubernetes
 
 import (
 	"fmt"
+
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
