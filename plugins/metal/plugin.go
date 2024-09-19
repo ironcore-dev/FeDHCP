@@ -33,11 +33,8 @@ var Plugin = plugins.Plugin{
 	Setup4: setup4,
 }
 
-var (
-	config *api.Machines
-	// map MAC address to machine name
-	machineMap = make(map[string]string)
-)
+// map MAC address to machine name
+var machineMap map[string]string
 
 // args[0] = path to configuration file
 func parseArgs(args ...string) (string, error) {
@@ -48,39 +45,51 @@ func parseArgs(args ...string) (string, error) {
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	if err := loadConfig(args...); err != nil {
+	var err error
+	machineMap, err = loadConfig(args...)
+	if err != nil {
 		return nil, err
 	}
+
 	return handler6, nil
 }
 
-func loadConfig(args ...string) error {
-	fmt.Print("loading metal config")
+func loadConfig(args ...string) (map[string]string, error) {
+	log.Info("Loading metal config")
 	path, err := parseArgs(args...)
 	if err != nil {
-		return fmt.Errorf("invalid configuration: %v", err)
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
+	log.Info("Reading metal config file", "ConfigFile", path)
 	configData, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to read config file: %v", err)
+		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	config = &api.Machines{}
-	if err := json.Unmarshal(configData, config); err != nil {
-		return fmt.Errorf("failed to parse config file: %v", err)
+	var config []api.Machine
+	if err = json.Unmarshal(configData, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
-	for _, m := range config.MachineList {
-		machineMap[m.MacAddress] = m.Name
+	machines := make(map[string]string)
+	for _, m := range config {
+		if m.MacAddress != "" && m.Name != "" {
+			machines[m.MacAddress] = m.Name
+		}
 	}
-	return nil
+
+	log.Info("Loaded metal config", "Machines", len(machines))
+	return machines, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	if err := loadConfig(args...); err != nil {
+	var err error
+	machineMap, err = loadConfig(args...)
+	if err != nil {
 		return nil, err
 	}
+
 	return handler4, nil
 }
 

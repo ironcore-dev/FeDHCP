@@ -115,19 +115,18 @@ func SetupTest() *corev1.Namespace {
 		Expect(k8sClient.Create(ctx, ns)).To(Succeed(), "failed to create test namespace")
 		DeferCleanup(k8sClient.Delete, ns)
 
-		config = &api.Machines{
-			MachineList: []api.Machine{
-				{
-					Name:       machineWithIPAddressName,
-					MacAddress: machineWithIPAddressMACAddress,
-				},
-				{
-					Name:       machineWithoutIPAddressName,
-					MacAddress: machineWithoutIPAddressMACAddress,
-				},
+		config := []api.Machine{
+			{
+				Name:       machineWithIPAddressName,
+				MacAddress: machineWithIPAddressMACAddress,
+			},
+			{
+				Name:       machineWithoutIPAddressName,
+				MacAddress: machineWithoutIPAddressMACAddress,
 			},
 		}
-		for _, m := range config.MachineList {
+		machineMap = make(map[string]string)
+		for _, m := range config {
 			machineMap[m.MacAddress] = m.Name
 		}
 	})

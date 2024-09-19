@@ -5,9 +5,9 @@ package metal
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/ironcore-dev/fedhcp/internal/api"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"github.com/mdlayher/netx/eui64"
@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"net"
 	"os"
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
@@ -86,7 +85,6 @@ var _ = Describe("Endpoint", func() {
 		})).Should(Succeed())
 	})
 
-	/* parametrization */
 	It("Setup6 should return error if less arguments are provided", func() {
 		_, err := setup6()
 		Expect(err).NotTo(BeNil())
@@ -118,39 +116,51 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	It("Should return empty machine list if the config file is malformed", func() {
-		// empty the machine map
-		machineMap = make(map[string]string)
-
-		malformedJson := "malformed.json"
-		// Create a map with key-value pairs
-		data := map[string]string{
-			"foo":  "bar",
-			"fizz": "buzz",
+		configFile := "config.json"
+		data := []map[string]string{
+			{
+				"foo": "compute-1",
+				"bar": "aa:bb:cc:dd:ee:ff",
+			},
 		}
+		configData, err := json.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
 
-		// Create a JSON file
-		file, err := os.Create(malformedJson)
-		if err != nil {
-			fmt.Println("Error creating file:", err)
-			return
-		}
-		defer os.Remove(malformedJson)
-		defer file.Close()
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
 
-		// Encode the map as JSON and write it to the file
-		encoder := json.NewEncoder(file)
-		encoder.SetIndent("", "  ") // Optional: to pretty-print the JSON with indentation
-		err = encoder.Encode(data)
-		if err != nil {
-			fmt.Println("Error encoding JSON:", err)
-			return
-		}
-
-		err = loadConfig(malformedJson)
-		Expect(machineMap).To(BeEmpty())
+		m, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(m).To(BeEmpty())
 	})
 
-	/* IPv6 */
+	It("Should return a valid machines list for a valid config", func() {
+		configFile := "config.json"
+		data := []api.Machine{
+			{
+				Name:       "compute-1",
+				MacAddress: "aa:bb:cc:dd:ee:ff",
+			},
+		}
+		configData, err := json.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		m, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(m).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
+	})
+
 	It("Should create an endpoint for IPv6 DHCP request from a known machine with IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
 		ip := net.ParseIP(linkLocalIPV6Prefix)
@@ -173,7 +183,6 @@ var _ = Describe("Endpoint", func() {
 		Eventually(Object(endpoint)).Should(SatisfyAll(
 			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
 			HaveField("Spec.IP", metalv1alpha1.MustParseIP(linkLocalIPV6Addr.String()))))
-
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
@@ -198,18 +207,12 @@ var _ = Describe("Endpoint", func() {
 		stub.MessageType = dhcpv6.MessageTypeReply
 		_, _ = handler6(relayedRequest, stub)
 
-		epName := types.NamespacedName{
-			Name: machineWithoutIPAddressName,
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithoutIPAddressName,
+			},
 		}
-		endpoint := &metalv1alpha1.Endpoint{}
-
-		Eventually(func() error {
-			return k8sClient.Get(ctx, epName, endpoint)
-		}).ShouldNot(Succeed())
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, epName, endpoint)
-			return apierrors.IsNotFound(err)
-		}).Should(BeTrue())
+		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
 
 	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
@@ -225,18 +228,12 @@ var _ = Describe("Endpoint", func() {
 		stub.MessageType = dhcpv6.MessageTypeReply
 		_, _ = handler6(relayedRequest, stub)
 
-		epName := types.NamespacedName{
-			Name: machineWithIPAddressName,
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithoutIPAddressName,
+			},
 		}
-		endpoint := &metalv1alpha1.Endpoint{}
-
-		Eventually(func() error {
-			return k8sClient.Get(ctx, epName, endpoint)
-		}).ShouldNot(Succeed())
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, epName, endpoint)
-			return apierrors.IsNotFound(err)
-		}).Should(BeTrue())
+		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
 
 	It("Should return and break plugin chain, if getting an IPv6 DHCP request directly (no relay)", func(ctx SpecContext) {
@@ -251,7 +248,6 @@ var _ = Describe("Endpoint", func() {
 		Eventually(breakChain).Should(BeTrue())
 	})
 
-	/* IPv4 */
 	It("Should create an endpoint for IPv4 DHCP request from a known machine with IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
 
@@ -281,18 +277,12 @@ var _ = Describe("Endpoint", func() {
 
 		_, _ = handler4(req, stub)
 
-		epName := types.NamespacedName{
-			Name: machineWithoutIPAddressName,
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithoutIPAddressName,
+			},
 		}
-		endpoint := &metalv1alpha1.Endpoint{}
-
-		Eventually(func() error {
-			return k8sClient.Get(ctx, epName, endpoint)
-		}).ShouldNot(Succeed())
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, epName, endpoint)
-			return apierrors.IsNotFound(err)
-		}).Should(BeTrue())
+		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
 
 	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
@@ -303,17 +293,11 @@ var _ = Describe("Endpoint", func() {
 
 		_, _ = handler4(req, stub)
 
-		epName := types.NamespacedName{
-			Name: machineWithIPAddressName,
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
 		}
-		endpoint := &metalv1alpha1.Endpoint{}
-
-		Eventually(func() error {
-			return k8sClient.Get(ctx, epName, endpoint)
-		}).ShouldNot(Succeed())
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, epName, endpoint)
-			return apierrors.IsNotFound(err)
-		}).Should(BeTrue())
+		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
 })
