@@ -4,10 +4,11 @@
 package metal
 
 import (
-	"encoding/json"
 	"net"
 	"os"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
@@ -97,7 +98,7 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	It("Setup6 should return error if config file does not exist", func() {
-		_, err := setup6("does-not-exist.json")
+		_, err := setup6("does-not-exist.yaml")
 		Expect(err).NotTo(BeNil())
 	})
 
@@ -112,19 +113,19 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	It("Setup4 should return error if config file does not exist", func() {
-		_, err := setup4("does-not-exist.json")
+		_, err := setup4("does-not-exist.yaml")
 		Expect(err).NotTo(BeNil())
 	})
 
 	It("Should return empty inventory list if the config file is malformed", func() {
-		configFile := "config.json"
+		configFile := "config.yaml"
 		data := []map[string]string{
 			{
 				"foo": "compute-1",
 				"bar": "aa:bb:cc:dd:ee:ff",
 			},
 		}
-		configData, err := json.Marshal(data)
+		configData, err := yaml.Marshal(data)
 		Expect(err).NotTo(HaveOccurred())
 
 		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
@@ -140,14 +141,14 @@ var _ = Describe("Endpoint", func() {
 	})
 
 	It("Should return a valid inventory list for a valid config", func() {
-		configFile := "config.json"
+		configFile := "config.yaml"
 		data := []api.Inventory{
 			{
 				Name:       "compute-1",
 				MacAddress: "aa:bb:cc:dd:ee:ff",
 			},
 		}
-		configData, err := json.Marshal(data)
+		configData, err := yaml.Marshal(data)
 		Expect(err).NotTo(HaveOccurred())
 
 		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)

@@ -4,6 +4,6 @@
 package api
 
 type Inventory struct {
-	Name       string `json:"name"`
-	MacAddress string `json:"macAddress"`
+	Name       string `yaml:"name"`
+	MacAddress string `yaml:"macAddress"`
 }

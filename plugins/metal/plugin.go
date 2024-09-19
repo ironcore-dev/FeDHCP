@@ -5,12 +5,13 @@ package metal
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/netip"
 	"os"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -69,7 +70,7 @@ func loadConfig(args ...string) (map[string]string, error) {
 	}
 
 	var config []api.Inventory
-	if err = json.Unmarshal(configData, &config); err != nil {
+	if err = yaml.Unmarshal(configData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 

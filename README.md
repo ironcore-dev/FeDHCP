@@ -72,18 +72,12 @@ As for in-band, a kubernetes namespace shall be passed as a parameter. Further, 
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
 ### Configuration
-Path to an inventory json shall be passed as a string. It represents a list of machines as follows:
-```bash
-[
-  {
-    "name": "Server-01",
-    "macAddress": "00:1A:2B:3C:4D:5E"
-  },
-  {
-    "name": "Server-02",
-    "macAddress": "00:1A:2B:3C:4D:5F"
-  },
-]
+Path to an inventory yaml shall be passed as a string. It represents a list of machines as follows:
+```yaml
+- name: server-01
+  macAddress: 00:1A:2B:3C:4D:5E
+- name: server-02
+  macAddress: 00:1A:2B:3C:4D:5F
 ```
 ### Notes
 - supports both IPv4 and IPv6
