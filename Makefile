@@ -19,7 +19,7 @@ run: all
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} $(GITHUB_PAT_MOUNT) .
+	docker build -t ${IMG}
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -45,8 +45,8 @@ addlicense: ## Add license headers to all go files.
 checklicense: ## Check that every file has a license header present.
 	find . -name '*.go' -exec go run github.com/google/addlicense  -check -c 'OnMetal authors' {} +
 
-lint: ## Run golangci-lint against code.
-	golangci-lint run ./...
+lint: golangci-lint ## Run golangci-lint against code.
+	$(GOLANGCI_LINT) run ./...
 
 .PHONY: test
 test: controller-gen fmt vet envtest ## Run tests.
@@ -70,11 +70,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 KUSTOMIZE_VERSION ?= v5.4.1
 CONTROLLER_TOOLS_VERSION ?= v0.15.0
 ENVTEST_VERSION ?= release-0.18
-GOLANGCI_LINT_VERSION ?= v1.57.2
-#KUSTOMIZE_VERSION ?= latest
-#CONTROLLER_TOOLS_VERSION ?= latest
-#ENVTEST_VERSION ?= latest
-#GOLANGCI_LINT_VERSION ?= latest
+GOLANGCI_LINT_VERSION ?= v1.61.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
