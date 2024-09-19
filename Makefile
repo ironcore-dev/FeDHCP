@@ -3,13 +3,12 @@ IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 
-.PHONY: target/fedhcp
+.PHONY: all
 
-all: target/fedhcp
+all: build
 
-target/fedhcp:
-	mkdir -p target
-	CGO_ENABLED=0 go build -o target/fedhcp .
+build:
+	go build -o bin/fedhcp ./main.go
 
 clean:
 	rm -rf target
