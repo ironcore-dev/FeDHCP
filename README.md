@@ -61,12 +61,34 @@ The OOB plugin leases an IP object to an out-of-band client, based on a subnet d
 
 An IP object with a random IP address from the subnet's vacant list is created in IPAM, the IP address is then leased back to the client. Currently no cleanup-on-release is performed, so clients with stable identifiers are guaranteed to become stable IP addresses.
 ### Configuration
-As for in-band, a kubernetes namespace shall be passed as a parameter. Further, an subnet label list in the form `value:key` shall be passed, it is used for subnet detection.
+As for in-band, a kubernetes namespace shall be passed as a parameter. Further, a subnet label list in the form `value:key` shall be passed, it is used for subnet detection.
 ### Notes
 - supports both IPv4 and IPv6
 - IPv6 relays are supported, IPv4 are not
 - other than for in-band, where the DHCP leasing and kubernetes persistence are handled in different plugins, for out-of-band a single plugin is used
 - depends on [IPAM operator](https://github.com/ironcore-dev/ipam)
+ 
+## Metal
+The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
+
+### Configuration
+Path to an inventory json shall be passed as a string. It represents a list of machines as follows:
+```bash
+[
+  {
+    "name": "Server-01",
+    "macAddress": "00:1A:2B:3C:4D:5E"
+  },
+  {
+    "name": "Server-02",
+    "macAddress": "00:1A:2B:3C:4D:5F"
+  },
+]
+```
+### Notes
+- supports both IPv4 and IPv6
+- IPv6 relays are supported, IPv4 are not
+- depends on [metal operator](https://github.com/ironcore-dev/metal)
 
 ## PXEBoot
 The PXEBoot plugin implements an (i)PXE network boot.
