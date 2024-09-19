@@ -116,7 +116,7 @@ var _ = Describe("Endpoint", func() {
 		Expect(err).NotTo(BeNil())
 	})
 
-	It("Should return empty machine list if the config file is malformed", func() {
+	It("Should return empty inventory list if the config file is malformed", func() {
 		configFile := "config.json"
 		data := []map[string]string{
 			{
@@ -134,14 +134,14 @@ var _ = Describe("Endpoint", func() {
 		}()
 		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
 
-		m, err := loadConfig(file.Name())
+		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(m).To(BeEmpty())
+		Expect(i).To(BeEmpty())
 	})
 
-	It("Should return a valid machines list for a valid config", func() {
+	It("Should return a valid inventory list for a valid config", func() {
 		configFile := "config.json"
-		data := []api.Machine{
+		data := []api.Inventory{
 			{
 				Name:       "compute-1",
 				MacAddress: "aa:bb:cc:dd:ee:ff",
@@ -157,9 +157,9 @@ var _ = Describe("Endpoint", func() {
 		}()
 		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
 
-		m, err := loadConfig(file.Name())
+		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(m).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
+		Expect(i).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
 	})
 
 	It("Should create an endpoint for IPv6 DHCP request from a known machine with IP address", func(ctx SpecContext) {

@@ -3,7 +3,7 @@
 
 package api
 
-type Machine struct {
+type Inventory struct {
 	Name       string `json:"name"`
 	MacAddress string `json:"macAddress"`
 }

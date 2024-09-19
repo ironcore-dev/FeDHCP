@@ -34,8 +34,8 @@ var Plugin = plugins.Plugin{
 	Setup4: setup4,
 }
 
-// map MAC address to machine name
-var machineMap map[string]string
+// map MAC address to inventory name
+var inventoryMap map[string]string
 
 // args[0] = path to configuration file
 func parseArgs(args ...string) (string, error) {
@@ -47,7 +47,7 @@ func parseArgs(args ...string) (string, error) {
 
 func setup6(args ...string) (handler.Handler6, error) {
 	var err error
-	machineMap, err = loadConfig(args...)
+	inventoryMap, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
 	}
@@ -68,25 +68,25 @@ func loadConfig(args ...string) (map[string]string, error) {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	var config []api.Machine
+	var config []api.Inventory
 	if err = json.Unmarshal(configData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
-	machines := make(map[string]string)
-	for _, m := range config {
-		if m.MacAddress != "" && m.Name != "" {
-			machines[m.MacAddress] = m.Name
+	inventories := make(map[string]string)
+	for _, i := range config {
+		if i.MacAddress != "" && i.Name != "" {
+			inventories[i.MacAddress] = i.Name
 		}
 	}
 
-	log.Info("Loaded metal config", "Machines", len(machines))
-	return machines, nil
+	log.Info("Loaded metal config", "Inventories", len(inventories))
+	return inventories, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
 	var err error
-	machineMap, err = loadConfig(args...)
+	inventoryMap, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,10 +133,10 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 }
 
 func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
-	machineName, ok := machineMap[mac.String()]
+	inventoryName, ok := inventoryMap[mac.String()]
 	if !ok {
 		// done here, next plugin
-		return fmt.Errorf("unknown machine MAC address: %s", mac.String())
+		return fmt.Errorf("unknown inventory MAC address: %s", mac.String())
 	}
 
 	ip, err := GetIPForMACAddress(mac, subnetFamily)
@@ -145,8 +145,8 @@ func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.
 	}
 
 	if ip != nil {
-		if err := ApplyEndpointForMachine(machineName, mac, ip); err != nil {
-			return fmt.Errorf("could not apply endpoint for machine: %s", err)
+		if err := ApplyEndpointForInventory(inventoryName, mac, ip); err != nil {
+			return fmt.Errorf("could not apply endpoint for inventory: %s", err)
 		}
 	} else {
 		log.Infof("Could not find IP for MAC address %s", mac.String())
@@ -155,7 +155,7 @@ func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.
 	return nil
 }
 
-func ApplyEndpointForMachine(name string, mac net.HardwareAddr, ip *netip.Addr) error {
+func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr) error {
 	if ip == nil {
 		log.Info("No IP address specified. Skipping.")
 		return nil
