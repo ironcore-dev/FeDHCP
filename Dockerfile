@@ -14,6 +14,7 @@ RUN go mod download
 # Copy the go source
 COPY main.go main.go
 COPY plugins/ plugins/
+COPY internal/ internal/
 
 ARG TARGETOS
 ARG TARGETARCH

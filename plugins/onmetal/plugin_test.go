@@ -4,9 +4,10 @@
 package onmetal
 
 import (
-	"github.com/insomniacslk/dhcp/dhcpv6"
 	"net"
 	"testing"
+
+	"github.com/insomniacslk/dhcp/dhcpv6"
 )
 
 const (

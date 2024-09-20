@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
+
 	"github.com/coredhcp/coredhcp/config"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/server"
@@ -32,6 +34,7 @@ import (
 	pl_bluefield "github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	pl_httpboot "github.com/ironcore-dev/fedhcp/plugins/httpboot"
 	pl_ipam "github.com/ironcore-dev/fedhcp/plugins/ipam"
+	pl_metal "github.com/ironcore-dev/fedhcp/plugins/metal"
 	pl_onmetal "github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	pl_oob "github.com/ironcore-dev/fedhcp/plugins/oob"
 	pl_pxeboot "github.com/ironcore-dev/fedhcp/plugins/pxeboot"
@@ -88,6 +91,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&pl_oob.Plugin,
 	&pl_pxeboot.Plugin,
 	&pl_httpboot.Plugin,
+	&pl_metal.Plugin,
 }
 
 func main() {
@@ -124,6 +128,11 @@ func main() {
 		if err := plugins.RegisterPlugin(plugin); err != nil {
 			log.Fatalf("Failed to register plugin '%s': %v", plugin.Name, err)
 		}
+	}
+
+	// initialize kubernetes client
+	if err := kubernetes.InitClient(); err != nil {
+		log.Fatalf("Failed to initialize kubernetes client: %v", err)
 	}
 
 	// start server

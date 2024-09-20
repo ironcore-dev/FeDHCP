@@ -3,13 +3,12 @@ IMG ?= controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
 
-.PHONY: target/fedhcp
+.PHONY: all
 
-all: target/fedhcp
+all: build
 
-target/fedhcp:
-	mkdir -p target
-	CGO_ENABLED=0 go build -o target/fedhcp .
+build:
+	go build -o bin/fedhcp ./main.go
 
 clean:
 	rm -rf target
@@ -19,15 +18,15 @@ run: all
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker build -t ${IMG} $(GITHUB_PAT_MOUNT) .
+	docker build -t ${IMG}
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 .PHONY: fmt
-fmt: ## Run go fmt against code.
-	go fmt ./...
+fmt: goimports ## Run goimports against code.
+	$(GOIMPORTS) -w .
 
 .PHONY: vet
 vet: ## Run go vet against code.
@@ -45,8 +44,8 @@ addlicense: ## Add license headers to all go files.
 checklicense: ## Check that every file has a license header present.
 	find . -name '*.go' -exec go run github.com/google/addlicense  -check -c 'OnMetal authors' {} +
 
-lint: ## Run golangci-lint against code.
-	golangci-lint run ./...
+lint: golangci-lint ## Run golangci-lint against code.
+	$(GOLANGCI_LINT) run ./...
 
 .PHONY: test
 test: controller-gen fmt vet envtest ## Run tests.
@@ -65,16 +64,14 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize-$(KUSTOMIZE_VERSION)
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen-$(CONTROLLER_TOOLS_VERSION)
 ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
+GOIMPORTS ?= $(LOCALBIN)/goimports-$(GOIMPORTS_VERSION)
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.1
 CONTROLLER_TOOLS_VERSION ?= v0.15.0
-ENVTEST_VERSION ?= release-0.18
-GOLANGCI_LINT_VERSION ?= v1.57.2
-#KUSTOMIZE_VERSION ?= latest
-#CONTROLLER_TOOLS_VERSION ?= latest
-#ENVTEST_VERSION ?= latest
-#GOLANGCI_LINT_VERSION ?= latest
+ENVTEST_VERSION ?= latest
+GOLANGCI_LINT_VERSION ?= v1.61.0
+GOIMPORTS_VERSION ?= v0.25.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -95,6 +92,11 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+
+.PHONY: goimports
+goimports: $(GOIMPORTS) ## Download goimports locally if necessary.
+$(GOIMPORTS): $(LOCALBIN)
+	$(call go-install-tool,$(GOIMPORTS),golang.org/x/tools/cmd/goimports,$(GOIMPORTS_VERSION))
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary (ideally with version)
