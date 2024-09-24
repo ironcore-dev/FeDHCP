@@ -11,10 +11,10 @@ build:
 	go build -o bin/fedhcp ./main.go
 
 clean:
-	rm -rf target
+	rm -rf bin
 
 run: all
-	sudo ./target/fedhcp
+	sudo ./bin/fedhcp
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
