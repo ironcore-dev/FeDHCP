@@ -4,147 +4,117 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"io"
 	"os"
-	"time"
-
-	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 
 	"github.com/coredhcp/coredhcp/config"
-	"github.com/coredhcp/coredhcp/logger"
-	"github.com/coredhcp/coredhcp/server"
-
 	"github.com/coredhcp/coredhcp/plugins"
-	pl_autoconfigure "github.com/coredhcp/coredhcp/plugins/autoconfigure"
-	pl_dns "github.com/coredhcp/coredhcp/plugins/dns"
-	pl_example "github.com/coredhcp/coredhcp/plugins/example"
-	pl_file "github.com/coredhcp/coredhcp/plugins/file"
-	pl_leasetime "github.com/coredhcp/coredhcp/plugins/leasetime"
-	pl_mtu "github.com/coredhcp/coredhcp/plugins/mtu"
-	pl_nbp "github.com/coredhcp/coredhcp/plugins/nbp"
-	pl_netmask "github.com/coredhcp/coredhcp/plugins/netmask"
-	pl_prefix "github.com/coredhcp/coredhcp/plugins/prefix"
-	pl_range "github.com/coredhcp/coredhcp/plugins/range"
-	pl_router "github.com/coredhcp/coredhcp/plugins/router"
-	pl_searchdomains "github.com/coredhcp/coredhcp/plugins/searchdomains"
-	pl_serverid "github.com/coredhcp/coredhcp/plugins/serverid"
-	pl_sleep "github.com/coredhcp/coredhcp/plugins/sleep"
-	pl_staticroute "github.com/coredhcp/coredhcp/plugins/staticroute"
-	pl_bluefield "github.com/ironcore-dev/fedhcp/plugins/bluefield"
-	pl_httpboot "github.com/ironcore-dev/fedhcp/plugins/httpboot"
-	pl_ipam "github.com/ironcore-dev/fedhcp/plugins/ipam"
-	pl_metal "github.com/ironcore-dev/fedhcp/plugins/metal"
-	pl_onmetal "github.com/ironcore-dev/fedhcp/plugins/onmetal"
-	pl_oob "github.com/ironcore-dev/fedhcp/plugins/oob"
-	pl_pxeboot "github.com/ironcore-dev/fedhcp/plugins/pxeboot"
-
-	"github.com/sirupsen/logrus"
-	flag "github.com/spf13/pflag"
+	"github.com/coredhcp/coredhcp/plugins/autoconfigure"
+	"github.com/coredhcp/coredhcp/plugins/dns"
+	"github.com/coredhcp/coredhcp/plugins/example"
+	"github.com/coredhcp/coredhcp/plugins/file"
+	"github.com/coredhcp/coredhcp/plugins/leasetime"
+	"github.com/coredhcp/coredhcp/plugins/mtu"
+	"github.com/coredhcp/coredhcp/plugins/nbp"
+	"github.com/coredhcp/coredhcp/plugins/netmask"
+	"github.com/coredhcp/coredhcp/plugins/prefix"
+	rangeplugin "github.com/coredhcp/coredhcp/plugins/range"
+	"github.com/coredhcp/coredhcp/plugins/router"
+	"github.com/coredhcp/coredhcp/plugins/searchdomains"
+	"github.com/coredhcp/coredhcp/plugins/serverid"
+	"github.com/coredhcp/coredhcp/plugins/sleep"
+	"github.com/coredhcp/coredhcp/plugins/staticroute"
+	"github.com/coredhcp/coredhcp/server"
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
+	"github.com/ironcore-dev/fedhcp/plugins/bluefield"
+	"github.com/ironcore-dev/fedhcp/plugins/httpboot"
+	"github.com/ironcore-dev/fedhcp/plugins/ipam"
+	"github.com/ironcore-dev/fedhcp/plugins/metal"
+	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
+	"github.com/ironcore-dev/fedhcp/plugins/oob"
+	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
-
-var (
-	flagLogFile              = flag.StringP("logfile", "l", "", "Name of the log file to append to. Default: stdout/stderr only")
-	flagLogNoStdout          = flag.BoolP("nostdout", "N", false, "Disable logging to stdout/stderr")
-	flagLogLevel             = flag.StringP("loglevel", "L", "info", fmt.Sprintf("Log level. One of %v", getLogLevels()))
-	flagConfig               = flag.StringP("conf", "c", "", "Use this configuration file instead of the default location")
-	flagPlugins              = flag.BoolP("plugins", "P", false, "list plugins")
-	flagInitKubernetesClient = flag.BoolP("init-kubernetes", "i", true, "init kubernetes client")
-)
-
-var logLevels = map[string]func(*logrus.Logger){
-	"none":    func(l *logrus.Logger) { l.SetOutput(io.Discard) },
-	"debug":   func(l *logrus.Logger) { l.SetLevel(logrus.DebugLevel) },
-	"info":    func(l *logrus.Logger) { l.SetLevel(logrus.InfoLevel) },
-	"warning": func(l *logrus.Logger) { l.SetLevel(logrus.WarnLevel) },
-	"error":   func(l *logrus.Logger) { l.SetLevel(logrus.ErrorLevel) },
-	"fatal":   func(l *logrus.Logger) { l.SetLevel(logrus.FatalLevel) },
-	"trace":   func(l *logrus.Logger) { l.SetLevel(logrus.TraceLevel) },
-}
-
-func getLogLevels() []string {
-	var levels []string
-	for k := range logLevels {
-		levels = append(levels, k)
-	}
-	return levels
-}
 
 var desiredPlugins = []*plugins.Plugin{
-	&pl_autoconfigure.Plugin,
-	&pl_dns.Plugin,
-	&pl_example.Plugin,
-	&pl_file.Plugin,
-	&pl_leasetime.Plugin,
-	&pl_mtu.Plugin,
-	&pl_nbp.Plugin,
-	&pl_netmask.Plugin,
-	&pl_prefix.Plugin,
-	&pl_range.Plugin,
-	&pl_router.Plugin,
-	&pl_searchdomains.Plugin,
-	&pl_serverid.Plugin,
-	&pl_sleep.Plugin,
-	&pl_staticroute.Plugin,
-	&pl_bluefield.Plugin,
-	&pl_ipam.Plugin,
-	&pl_onmetal.Plugin,
-	&pl_oob.Plugin,
-	&pl_pxeboot.Plugin,
-	&pl_httpboot.Plugin,
-	&pl_metal.Plugin,
+	&autoconfigure.Plugin,
+	&dns.Plugin,
+	&example.Plugin,
+	&file.Plugin,
+	&leasetime.Plugin,
+	&mtu.Plugin,
+	&nbp.Plugin,
+	&netmask.Plugin,
+	&prefix.Plugin,
+	&rangeplugin.Plugin,
+	&router.Plugin,
+	&searchdomains.Plugin,
+	&serverid.Plugin,
+	&sleep.Plugin,
+	&staticroute.Plugin,
+	&bluefield.Plugin,
+	&ipam.Plugin,
+	&onmetal.Plugin,
+	&oob.Plugin,
+	&pxeboot.Plugin,
+	&httpboot.Plugin,
+	&metal.Plugin,
 }
 
+var (
+	setupLog = ctrl.Log.WithName("setup")
+)
+
 func main() {
+	var configFile string
+	var listPlugins bool
+
+	flag.StringVar(&configFile, "config", "", "config file")
+	flag.BoolVar(&listPlugins, "list-plugins", false, "list plugins")
+	opts := zap.Options{
+		Development: true,
+	}
+	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	if *flagPlugins {
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if listPlugins {
 		for _, p := range desiredPlugins {
 			fmt.Println(p.Name)
 		}
 		os.Exit(0)
 	}
 
-	log := logger.GetLogger("main")
-	fn, ok := logLevels[*flagLogLevel]
-	if !ok {
-		log.Fatalf("Invalid log level '%s'. Valid log levels are %v", *flagLogLevel, getLogLevels())
-	}
-	fn(log.Logger)
-	log.Infof("Setting log level to '%s'", *flagLogLevel)
-	if *flagLogFile != "" {
-		log.Infof("Logging to file %s", *flagLogFile)
-		logger.WithFile(log, *flagLogFile)
-	}
-	if *flagLogNoStdout {
-		log.Infof("Disabling logging to stdout/stderr")
-		logger.WithNoStdOutErr(log)
-	}
-	config, err := config.Load(*flagConfig)
+	cfg, err := config.Load(configFile)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		setupLog.Error(err, "Failed to load configuration", "ConfigFile", configFile)
+		os.Exit(1)
 	}
+
 	// register plugins
 	for _, plugin := range desiredPlugins {
 		if err := plugins.RegisterPlugin(plugin); err != nil {
-			log.Fatalf("Failed to register plugin '%s': %v", plugin.Name, err)
+			setupLog.Error(err, "Failed to register plugin", "Plugin", plugin.Name)
+			os.Exit(1)
 		}
 	}
 
 	// initialize kubernetes client, if needed
-	if *flagInitKubernetesClient {
-		if err := kubernetes.InitClient(); err != nil {
-			log.Fatalf("Failed to initialize kubernetes client: %v", err)
-		}
+	if err := kubernetes.InitClient(); err != nil {
+		setupLog.Error(err, "Failed to initialize kubernetes client")
+		os.Exit(1)
 	}
 
 	// start server
-	srv, err := server.Start(config)
+	srv, err := server.Start(cfg)
 	if err != nil {
-		log.Fatal(err)
+		setupLog.Error(err, "Failed to start server")
+		os.Exit(1)
 	}
 	if err := srv.Wait(); err != nil {
-		log.Print(err)
+		setupLog.Error(err, "Failed to wait server")
 	}
-	time.Sleep(time.Second)
 }

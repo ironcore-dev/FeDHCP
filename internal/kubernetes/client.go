@@ -6,26 +6,26 @@ package kubernetes
 import (
 	"fmt"
 
+	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
-var kubeClient client.Client
+var (
+	scheme     = runtime.NewScheme()
+	kubeClient client.Client
+)
+
+func init() {
+	utilruntime.Must(ipamv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(metalv1alpha1.AddToScheme(scheme))
+}
 
 func InitClient() error {
-	if kubeClient != nil {
-		return nil
-	}
-
 	cfg := config.GetConfigOrDie()
-
-	scheme := runtime.NewScheme()
-	if err := metalv1alpha1.AddToScheme(scheme); err != nil {
-		return fmt.Errorf("unable to add metalv1alpha1 to scheme: %w", err)
-	}
-
 	var err error
 	kubeClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
@@ -39,6 +39,4 @@ func SetClient(client *client.Client) {
 	kubeClient = *client
 }
 
-func GetClient() client.Client {
-	return kubeClient
-}
+func GetClient() client.Client { return kubeClient }
