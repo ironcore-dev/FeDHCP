@@ -64,7 +64,8 @@ var desiredPlugins = []*plugins.Plugin{
 }
 
 var (
-	setupLog = ctrl.Log.WithName("setup")
+	setupLog                   = ctrl.Log.WithName("setup")
+	pluginsRequiringKubernetes = []string{"oob", "ipam", "metal"}
 )
 
 func main() {
@@ -103,9 +104,11 @@ func main() {
 	}
 
 	// initialize kubernetes client, if needed
-	if err := kubernetes.InitClient(); err != nil {
-		setupLog.Error(err, "Failed to initialize kubernetes client")
-		os.Exit(1)
+	if kubernetesEnvironmentNeeded(cfg) {
+		if err := kubernetes.InitClient(); err != nil {
+			setupLog.Error(err, "Failed to initialize kubernetes client")
+			os.Exit(1)
+		}
 	}
 
 	// start server
@@ -117,4 +120,32 @@ func main() {
 	if err := srv.Wait(); err != nil {
 		setupLog.Error(err, "Failed to wait server")
 	}
+}
+
+func kubernetesEnvironmentNeeded(cfg *config.Config) bool {
+	if cfg.Server4 != nil {
+		for _, plugin := range cfg.Server4.Plugins {
+			if pluginNeedsKubernetes(plugin) {
+				return true
+			}
+		}
+	}
+	if cfg.Server6 != nil {
+		for _, plugin := range cfg.Server6.Plugins {
+			if pluginNeedsKubernetes(plugin) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func pluginNeedsKubernetes(plugin config.PluginConfig) bool {
+	for _, name := range pluginsRequiringKubernetes {
+		if name == plugin.Name {
+			return true
+		}
+	}
+	return false
 }
