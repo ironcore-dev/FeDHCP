@@ -44,11 +44,12 @@ import (
 )
 
 var (
-	flagLogFile     = flag.StringP("logfile", "l", "", "Name of the log file to append to. Default: stdout/stderr only")
-	flagLogNoStdout = flag.BoolP("nostdout", "N", false, "Disable logging to stdout/stderr")
-	flagLogLevel    = flag.StringP("loglevel", "L", "info", fmt.Sprintf("Log level. One of %v", getLogLevels()))
-	flagConfig      = flag.StringP("conf", "c", "", "Use this configuration file instead of the default location")
-	flagPlugins     = flag.BoolP("plugins", "P", false, "list plugins")
+	flagLogFile              = flag.StringP("logfile", "l", "", "Name of the log file to append to. Default: stdout/stderr only")
+	flagLogNoStdout          = flag.BoolP("nostdout", "N", false, "Disable logging to stdout/stderr")
+	flagLogLevel             = flag.StringP("loglevel", "L", "info", fmt.Sprintf("Log level. One of %v", getLogLevels()))
+	flagConfig               = flag.StringP("conf", "c", "", "Use this configuration file instead of the default location")
+	flagPlugins              = flag.BoolP("plugins", "P", false, "list plugins")
+	flagInitKubernetesClient = flag.BoolP("init-kubernetes", "i", true, "init kubernetes client")
 )
 
 var logLevels = map[string]func(*logrus.Logger){
@@ -130,9 +131,11 @@ func main() {
 		}
 	}
 
-	// initialize kubernetes client
-	if err := kubernetes.InitClient(); err != nil {
-		log.Fatalf("Failed to initialize kubernetes client: %v", err)
+	// initialize kubernetes client, if needed
+	if *flagInitKubernetesClient {
+		if err := kubernetes.InitClient(); err != nil {
+			log.Fatalf("Failed to initialize kubernetes client: %v", err)
+		}
 	}
 
 	// start server
