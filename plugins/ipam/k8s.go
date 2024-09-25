@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	"net"
 	"os"
 	"reflect"
@@ -24,7 +25,6 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 const (
@@ -41,16 +41,8 @@ type K8sClient struct {
 }
 
 func NewK8sClient(namespace string, subnetNames []string) (*K8sClient, error) {
-
-	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		return nil, fmt.Errorf("unable to add registered types ipam to client scheme: %w", err)
-	}
-
-	cfg := config.GetConfigOrDie()
-	cl, err := client.New(cfg, client.Options{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create controller runtime client: %w", err)
-	}
+	cfg := kubernetes.GetConfig()
+	cl := kubernetes.GetClient()
 
 	clientset, err := ipam.NewForConfig(cfg)
 	if err != nil {

@@ -5,6 +5,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"k8s.io/client-go/rest"
 
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
@@ -17,6 +18,7 @@ import (
 var (
 	scheme     = runtime.NewScheme()
 	kubeClient client.Client
+	cfg        *rest.Config
 )
 
 func init() {
@@ -25,7 +27,7 @@ func init() {
 }
 
 func InitClient() error {
-	cfg := config.GetConfigOrDie()
+	cfg = config.GetConfigOrDie()
 	var err error
 	kubeClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
@@ -40,3 +42,5 @@ func SetClient(client *client.Client) {
 }
 
 func GetClient() client.Client { return kubeClient }
+
+func GetConfig() *rest.Config { return cfg }
