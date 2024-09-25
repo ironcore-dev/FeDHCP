@@ -59,6 +59,7 @@ jobs:
           version: latest
           endpoint: builders
       - name: Login to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.registry }}
@@ -70,6 +71,6 @@ jobs:
         with:
           context: .
           platforms: ${{ env.platforms }}
-          push: true 
+          if: github.event_name != 'pull_request'
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
