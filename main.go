@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"os"
 
 	"github.com/coredhcp/coredhcp/config"
@@ -65,7 +66,7 @@ var desiredPlugins = []*plugins.Plugin{
 
 var (
 	setupLog                   = ctrl.Log.WithName("setup")
-	pluginsRequiringKubernetes = []string{"oob", "ipam", "metal"}
+	pluginsRequiringKubernetes = sets.New[string]("oob", "ipam", "metal")
 )
 
 func main() {
@@ -104,7 +105,7 @@ func main() {
 	}
 
 	// initialize kubernetes client, if needed
-	if kubernetesEnvironmentNeeded(cfg) {
+	if shouldSetupKubeClient(cfg) {
 		if err := kubernetes.InitClient(); err != nil {
 			setupLog.Error(err, "Failed to initialize kubernetes client")
 			os.Exit(1)
@@ -122,30 +123,22 @@ func main() {
 	}
 }
 
-func kubernetesEnvironmentNeeded(cfg *config.Config) bool {
+func shouldSetupKubeClient(cfg *config.Config) bool {
+	configuredPlugins := sets.Set[string]{}
 	if cfg.Server4 != nil {
 		for _, plugin := range cfg.Server4.Plugins {
-			if pluginNeedsKubernetes(plugin) {
-				return true
-			}
+			configuredPlugins.Insert(plugin.Name)
 		}
 	}
 	if cfg.Server6 != nil {
 		for _, plugin := range cfg.Server6.Plugins {
-			if pluginNeedsKubernetes(plugin) {
-				return true
-			}
+			configuredPlugins.Insert(plugin.Name)
 		}
 	}
 
-	return false
-}
-
-func pluginNeedsKubernetes(plugin config.PluginConfig) bool {
-	for _, name := range pluginsRequiringKubernetes {
-		if name == plugin.Name {
-			return true
-		}
+	if configuredPlugins.HasAny(pluginsRequiringKubernetes.UnsortedList()...) {
+		return true
 	}
+
 	return false
 }
