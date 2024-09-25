@@ -89,32 +89,32 @@ var _ = Describe("Endpoint", func() {
 
 	It("Setup6 should return error if less arguments are provided", func() {
 		_, err := setup6()
-		Expect(err).NotTo(BeNil())
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Setup6 should return error if more arguments are provided", func() {
 		_, err := setup6("foo", "bar")
-		Expect(err).NotTo(BeNil())
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Setup6 should return error if config file does not exist", func() {
 		_, err := setup6("does-not-exist.yaml")
-		Expect(err).NotTo(BeNil())
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Setup4 should return error if less arguments are provided", func() {
 		_, err := setup4()
-		Expect(err).NotTo(BeNil())
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Setup4 should return error if more arguments are provided", func() {
 		_, err := setup4("foo", "bar")
-		Expect(err).NotTo(BeNil())
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Setup4 should return error if config file does not exist", func() {
 		_, err := setup4("does-not-exist.yaml")
-		Expect(err).NotTo(BeNil())
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Should return empty inventory list if the config file is malformed", func() {
@@ -196,26 +196,28 @@ var _ = Describe("Endpoint", func() {
 		Eventually(ip).Should(BeNil())
 	})
 
-	It("Should not create an endpoint for IPv6 DHCP request from a known machine without IP address", func(ctx SpecContext) {
-		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
-		ip := net.ParseIP(linkLocalIPV6Prefix)
-		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+	It("Should not create an endpoint for IPv6 DHCP request from a known machine without IP address",
+		func(ctx SpecContext) {
+			mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+			ip := net.ParseIP(linkLocalIPV6Prefix)
+			linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
 
-		req, _ := dhcpv6.NewMessage()
-		req.MessageType = dhcpv6.MessageTypeRequest
-		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+			req, _ := dhcpv6.NewMessage()
+			req.MessageType = dhcpv6.MessageTypeRequest
+			relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+				net.IPv6loopback, linkLocalIPV6Addr)
 
-		stub, _ := dhcpv6.NewMessage()
-		stub.MessageType = dhcpv6.MessageTypeReply
-		_, _ = handler6(relayedRequest, stub)
+			stub, _ := dhcpv6.NewMessage()
+			stub.MessageType = dhcpv6.MessageTypeReply
+			_, _ = handler6(relayedRequest, stub)
 
-		endpoint := &metalv1alpha1.Endpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: machineWithoutIPAddressName,
-			},
-		}
-		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
-	})
+			endpoint := &metalv1alpha1.Endpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: machineWithoutIPAddressName,
+				},
+			}
+			Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
+		})
 
 	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(unknownMachineMACAddress)
@@ -271,21 +273,22 @@ var _ = Describe("Endpoint", func() {
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
-	It("Should not create an endpoint for IPv4 DHCP request from a known machine without IP address", func(ctx SpecContext) {
-		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+	It("Should not create an endpoint for IPv4 DHCP request from a known machine without IP address",
+		func(ctx SpecContext) {
+			mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
 
-		req, _ := dhcpv4.NewDiscovery(mac)
-		stub, _ := dhcpv4.NewReplyFromRequest(req)
+			req, _ := dhcpv4.NewDiscovery(mac)
+			stub, _ := dhcpv4.NewReplyFromRequest(req)
 
-		_, _ = handler4(req, stub)
+			_, _ = handler4(req, stub)
 
-		endpoint := &metalv1alpha1.Endpoint{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: machineWithoutIPAddressName,
-			},
-		}
-		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
-	})
+			endpoint := &metalv1alpha1.Endpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: machineWithoutIPAddressName,
+				},
+			}
+			Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
+		})
 
 	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(unknownMachineMACAddress)

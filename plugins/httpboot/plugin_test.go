@@ -13,11 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/insomniacslk/dhcp/iana"
-
 	"github.com/insomniacslk/dhcp/dhcpv4"
-
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/insomniacslk/dhcp/iana"
 )
 
 const (
@@ -285,7 +283,10 @@ func TestHTTPBootNotRelayedMsg6(t *testing.T) {
 func TestGenericHTTPBootRequested4(t *testing.T) {
 	Init4(expectedGenericBootURL)
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +321,10 @@ func TestGenericHTTPBootRequested4(t *testing.T) {
 func TestMalformedHTTPBootRequested4(t *testing.T) {
 	Init4(expectedGenericBootURL)
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,7 +389,10 @@ func TestMalformedHTTPBootRequested4(t *testing.T) {
 func TestHTTPBootNotRequested4(t *testing.T) {
 	Init4(expectedGenericBootURL)
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -506,7 +513,8 @@ func TestCustomHTTPBootRequestedKnownMAC(t *testing.T) {
 	req.UpdateOption(&optVendorClass)
 
 	// not known LinkAddr
-	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, net.IPv6loopback)
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+		net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, net.IPv6loopback)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +582,8 @@ func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
 	req.UpdateOption(&optVendorClass)
 
 	// not known LinkAddr
-	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, net.IPv6loopback)
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+		net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, net.IPv6loopback)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -206,7 +206,9 @@ func fetchUKIURL(url string, clientIPs []string) (string, error) {
 		log.Errorf("HTTP request failed: %v", err)
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

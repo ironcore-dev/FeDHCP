@@ -175,7 +175,8 @@ func TestPrefixDelegationRequested6(t *testing.T) {
 		Options: dhcpv6.PDOptions{},
 	})
 
-	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.ParseIP("2001:db8:1111:2222:3333:4444:5555:6666"), net.IPv6loopback)
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+		net.ParseIP("2001:db8:1111:2222:3333:4444:5555:6666"), net.IPv6loopback)
 	if err != nil {
 		t.Fatal(err)
 	}

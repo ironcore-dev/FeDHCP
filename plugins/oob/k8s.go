@@ -84,7 +84,11 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 	return &k8sClient, nil
 }
 
-func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr, exactIP bool, subnetType ipamv1alpha1.SubnetAddressType) (net.IP, error) {
+func (k K8sClient) getIp(
+	ipaddr net.IP,
+	mac net.HardwareAddr,
+	exactIP bool,
+	subnetType ipamv1alpha1.SubnetAddressType) (net.IP, error) {
 	var ipamIP *ipamv1alpha1.IP
 	macKey := strings.ReplaceAll(mac.String(), ":", "")
 
@@ -115,7 +119,8 @@ func (k K8sClient) getIp(ipaddr net.IP, mac net.HardwareAddr, exactIP bool, subn
 					return nil, err
 				}
 			} else {
-				log.Infof("Reserved IP %s (%s/%s) already exists in subnet %s", ipamIP.Status.Reserved.String(), ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
+				log.Infof("Reserved IP %s (%s/%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
+					ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
 				k.applySubnetLabel(ipamIP)
 			}
 			// break at first subnet match, there can be only one
@@ -156,11 +161,14 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv
 		for _, existingIpamIP := range ipList.Items {
 			if existingIpamIP.Spec.Subnet.Name != subnetName {
 				// IP with that MAC is assigned to a different subnet (v4 vs v6?)
-				log.Debugf("IPAM IP with MAC %v and wrong subnet %s/%s found, ignoring", macKey, existingIpamIP.Namespace, existingIpamIP.Spec.Subnet.Name)
+				log.Debugf("IPAM IP with MAC %v and wrong subnet %s/%s found, ignoring", macKey,
+					existingIpamIP.Namespace, existingIpamIP.Spec.Subnet.Name)
 				continue
 			} else if existingIpamIP.Status.State == ipamv1alpha1.CFailedIPState {
-				log.Infof("Failed IP %s/%s in subnet %s found, deleting", existingIpamIP.Namespace, existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
-				log.Debugf("Deleting old IP %s/%s:\n%v", existingIpamIP.Namespace, existingIpamIP.Name, prettyFormat(existingIpamIP.Status))
+				log.Infof("Failed IP %s/%s in subnet %s found, deleting", existingIpamIP.Namespace,
+					existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+				log.Debugf("Deleting old IP %s/%s:\n%v", existingIpamIP.Namespace, existingIpamIP.Name,
+					prettyFormat(existingIpamIP.Status))
 				err = k.Client.Delete(k.Ctx, &existingIpamIP)
 				if err != nil {
 					return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
@@ -172,7 +180,8 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv
 				}
 
 				k.EventRecorder.Eventf(&existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-				log.Debugf("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace, existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+				log.Debugf("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace,
+					existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
 			} else {
 				// IP already exists
 				return &existingIpamIP, nil
@@ -183,7 +192,11 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv
 	return nil, nil
 }
 
-func (k K8sClient) doCreateIpamIP(subnetName string, macKey string, ipaddr net.IP, exactIP bool) (*ipamv1alpha1.IP, error) {
+func (k K8sClient) doCreateIpamIP(
+	subnetName string,
+	macKey string,
+	ipaddr net.IP,
+	exactIP bool) (*ipamv1alpha1.IP, error) {
 	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
 	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
 	var ipamIP *ipamv1alpha1.IP
@@ -236,7 +249,8 @@ func (k K8sClient) doCreateIpamIP(subnetName string, macKey string, ipaddr net.I
 		if err != nil {
 			return nil, fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
 		} else {
-			log.Infof("New IP %s (%s/%s) created in subnet %s", ipamIP.Status.Reserved.String(), ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
+			log.Infof("New IP %s (%s/%s) created in subnet %s", ipamIP.Status.Reserved.String(),
+				ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
 			k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
 
 			// update IP attributes
