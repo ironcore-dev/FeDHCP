@@ -9,7 +9,7 @@ Source: https://github.com/ironcore-dev/FeDHCP
 Files:
   .github/*
   .gitignore
-  .golangci.yaml
+  .golangci.yml
   Dockerfile
   Makefile
   config/*

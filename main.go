@@ -6,7 +6,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"os"
 
 	"github.com/coredhcp/coredhcp/config"
@@ -35,6 +34,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
 	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
+	"k8s.io/apimachinery/pkg/util/sets"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )

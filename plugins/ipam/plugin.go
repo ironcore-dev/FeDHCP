@@ -29,7 +29,8 @@ var (
 
 func parseArgs(args ...string) (string, []string, error) {
 	if len(args) < 2 {
-		return "", []string{""}, fmt.Errorf("at least two arguments must be passed to ipam plugin, a namespace and a comma-separated subnet names list, got %d", len(args))
+		return "", []string{""}, fmt.Errorf("at least two arguments must be passed to ipam plugin, a namespace "+
+			"and a comma-separated subnet names list, got %d", len(args))
 	}
 
 	namespace := args[0]

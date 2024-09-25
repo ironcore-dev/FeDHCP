@@ -8,12 +8,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	"net"
 	"os"
 	"reflect"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	ipam "github.com/ironcore-dev/ipam/clientgo/ipam"
 	"github.com/pkg/errors"
@@ -135,7 +135,10 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 	return subnet, nil
 }
 
-func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net.HardwareAddr) (*ipamv1alpha1.IP, error) {
+func (k K8sClient) prepareCreateIpamIP(
+	subnetName string,
+	ipaddr net.IP,
+	mac net.HardwareAddr) (*ipamv1alpha1.IP, error) {
 	ip, err := ipamv1alpha1.IPAddrFromString(ipaddr.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse IP %s: %w", ipaddr, err)
@@ -176,23 +179,28 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, ipaddr net.IP, mac net
 		noop()
 	} else {
 		if !reflect.DeepEqual(ipamIP.Spec, existingIpamIP.Spec) {
-			log.Debugf("IP mismatch:\nold IP: %v,\nnew IP: %v", prettyFormat(existingIpamIP.Spec), prettyFormat(ipamIP.Spec))
+			log.Debugf("IP mismatch:\nold IP: %v,\nnew IP: %v", prettyFormat(existingIpamIP.Spec),
+				prettyFormat(ipamIP.Spec))
 			log.Infof("Deleting old IP %s/%s", existingIpamIP.Namespace, existingIpamIP.Name)
 			// delete old IP object
 			err = k.Client.Delete(k.Ctx, existingIpamIP)
 			if err != nil {
-				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
+				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace,
+					existingIpamIP.Name, err)
 			}
 
 			err = k.waitForDeletion(existingIpamIP)
 			if err != nil {
-				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
+				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace,
+					existingIpamIP.Name, err)
 			}
 
 			k.EventRecorder.Eventf(existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-			log.Infof("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace, existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+			log.Infof("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace, existingIpamIP.Name,
+				existingIpamIP.Spec.Subnet.Name)
 		} else {
-			log.Infof("IP %s/%s already exists in subnet %s, nothing to do", existingIpamIP.Namespace, existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+			log.Infof("IP %s/%s already exists in subnet %s, nothing to do", existingIpamIP.Namespace,
+				existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
 			return nil, nil
 		}
 	}

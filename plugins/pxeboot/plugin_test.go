@@ -327,7 +327,10 @@ func TestTFTPNotRequested6(t *testing.T) {
 func TestPXERequested4(t *testing.T) {
 	Init4()
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +361,10 @@ func TestPXERequested4(t *testing.T) {
 func TestTFTPRequested4(t *testing.T) {
 	Init4()
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +402,10 @@ func TestTFTPRequested4(t *testing.T) {
 func TestPXENotRequested4(t *testing.T) {
 	Init4()
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +433,10 @@ func TestPXENotRequested4(t *testing.T) {
 func TestTFTPNotRequested4(t *testing.T) {
 	Init4()
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,7 +468,10 @@ func TestTFTPNotRequested4(t *testing.T) {
 func TestWrongPXERequested4(t *testing.T) {
 	Init4()
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +502,10 @@ func TestWrongPXERequested4(t *testing.T) {
 func TestWrongTFTPRequested4(t *testing.T) {
 	Init4()
 
-	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}, dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName))
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
