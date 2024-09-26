@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
@@ -23,7 +25,6 @@ import (
 	"github.com/mdlayher/netx/eui64"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	controllerruntime "sigs.k8s.io/controller-runtime"
 )
 
 var log = logger.GetLogger("plugins/metal")
@@ -179,7 +180,7 @@ func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr
 		return fmt.Errorf("kubernetes client not initialized")
 	}
 
-	if _, err := controllerruntime.CreateOrUpdate(ctx, cl, endpoint, func() error { return nil }); err != nil {
+	if _, err := controllerutil.CreateOrPatch(ctx, cl, endpoint, nil); err != nil {
 		return fmt.Errorf("failed to apply endpoint: %v", err)
 	}
 
