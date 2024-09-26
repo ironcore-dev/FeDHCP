@@ -76,7 +76,7 @@ func loadConfig(args ...string) (map[string]string, error) {
 	inventories := make(map[string]string)
 	for _, i := range config {
 		if i.MacAddress != "" && i.Name != "" {
-			inventories[i.MacAddress] = i.Name
+			inventories[strings.ToLower(i.MacAddress)] = i.Name
 		}
 	}
 
@@ -133,7 +133,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 }
 
 func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
-	inventoryName, ok := inventoryMap[mac.String()]
+	inventoryName, ok := inventoryMap[strings.ToLower(mac.String())]
 	if !ok {
 		// done here, return no error, next plugin
 		log.Printf("Unknown inventory MAC address: %s", mac.String())
@@ -203,7 +203,7 @@ func GetIPForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAd
 		return nil, fmt.Errorf("failed to list IPs: %v", err)
 	}
 
-	sanitizedMAC := strings.Replace(mac.String(), ":", "", -1)
+	sanitizedMAC := strings.Replace(strings.ToLower(mac.String()), ":", "", -1)
 	for _, ip := range ips.Items {
 		if ip.Labels["mac"] == sanitizedMAC && ipFamilyMatches(ip, subnetFamily) {
 			return &ip.Status.Reserved.Net, nil
