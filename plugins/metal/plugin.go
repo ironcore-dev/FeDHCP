@@ -57,13 +57,12 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func loadConfig(args ...string) (map[string]string, error) {
-	log.Info("Loading metal config")
 	path, err := parseArgs(args...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	log.Info("Reading metal config file", "ConfigFile", path)
+	log.Infof("Reading metal config file %s", path)
 	configData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
@@ -81,7 +80,7 @@ func loadConfig(args ...string) (map[string]string, error) {
 		}
 	}
 
-	log.Info("Loaded metal config", "Inventories", len(inventories))
+	log.Infof("Loaded metal config with %d inventories", len(inventories))
 	return inventories, nil
 }
 
@@ -136,8 +135,9 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
 	inventoryName, ok := inventoryMap[mac.String()]
 	if !ok {
-		// done here, next plugin
-		return fmt.Errorf("unknown inventory MAC address: %s", mac.String())
+		// done here, return no error, next plugin
+		log.Printf("Unknown inventory MAC address: %s", mac.String())
+		return nil
 	}
 
 	ip, err := GetIPForMACAddress(mac, subnetFamily)
@@ -148,6 +148,8 @@ func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.
 	if ip != nil {
 		if err := ApplyEndpointForInventory(inventoryName, mac, ip); err != nil {
 			return fmt.Errorf("could not apply endpoint for inventory: %s", err)
+		} else {
+			log.Infof("Successfully applied endpoint for inventory %s[%s]", inventoryName, mac.String())
 		}
 	} else {
 		log.Infof("Could not find IP for MAC address %s", mac.String())
