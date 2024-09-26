@@ -33,11 +33,11 @@ RUN apt-get update \
 FROM gcr.io/distroless/base-debian12 AS distroless-base
 
 FROM distroless-base AS distroless-amd64
-ENV LIB_DIR_PREFIX x86_64
+ENV LIB_DIR_PREFIX=x86_64
 ENV LINKER=ld-linux-x86-64.so.2
 
 FROM distroless-base AS distroless-arm64
-ENV LIB_DIR_PREFIX aarch64
+ENV LIB_DIR_PREFIX=aarch64
 ENV LINKER=ld-linux-aarch64.so.1
 
 FROM distroless-$TARGETARCH AS output-image
