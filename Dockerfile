@@ -23,14 +23,14 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GO111MODULE=on go build -ldflags="-s -w" -a -o fedhcp main.go
 
-FROM debian:stable as installer
+FROM debian:stable AS installer
 
 RUN apt-get update \
   && apt-get -y install --no-install-recommends libcap2-bin \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-FROM gcr.io/distroless/base-debian12 as distroless-base
+FROM gcr.io/distroless/base-debian12 AS distroless-base
 
 FROM distroless-base AS distroless-amd64
 ENV LIB_DIR_PREFIX x86_64
