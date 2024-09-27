@@ -23,22 +23,32 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GO111MODULE=on go build -ldflags="-s -w" -a -o fedhcp main.go
 
-FROM debian:stable as installer
+FROM debian:stable AS installer
 
 RUN apt-get update \
   && apt-get -y install --no-install-recommends libcap2-bin \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/base-debian12 AS distroless-base
+
+FROM distroless-base AS distroless-amd64
+ENV LIB_DIR_PREFIX=x86_64
+ENV LINKER=ld-linux-x86-64.so.2
+
+FROM distroless-base AS distroless-arm64
+ENV LIB_DIR_PREFIX=aarch64
+ENV LINKER=ld-linux-aarch64.so.1
+
+FROM distroless-$TARGETARCH AS output-image
 
 WORKDIR /
 
 COPY --from=builder /workspace/fedhcp .
 COPY --from=installer /sbin/setcap /sbin/setcap
-COPY --from=installer /lib/x86_64-linux-gnu/libcap.so.2 /lib/x86_64-linux-gnu/libcap.so.2
-COPY --from=installer /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libc.so.6
-COPY --from=installer /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/libcap.so.2 /lib/${LIB_DIR_PREFIX}-linux-gnu/libcap.so.2
+COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/libc.so.6 /lib/${LIB_DIR_PREFIX}-linux-gnu/libc.so.6
+COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/${LINKER} /lib/${LIB_DIR_PREFIX}-linux-gnu/${LINKER}
 COPY --from=installer /bin/sh /bin/sh
 
 RUN /sbin/setcap 'cap_net_bind_service,cap_net_raw=+ep' /fedhcp
