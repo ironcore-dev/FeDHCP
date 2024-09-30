@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -38,7 +40,23 @@ var Plugin = plugins.Plugin{
 // map MAC address to inventory name
 var inventoryMap map[string]string
 
-// args[0] = path to configuration file
+// default inventory name prefix
+const defaultNamePrefix = "compute-"
+
+type OnBoardingStrategy int
+
+const (
+	OnboardingFromStaticList      = 1
+	OnboardingFromMACPrefixFilter = 2
+)
+
+// flag for onboarding strategy:
+// OnboardingFromStaticList: the name comes from a static inventory list and shall be taken "as is"
+//
+// OnboardingFromMACPrefixFilter: the name is only a prefix (default or custom), k8s will autogenerate it
+var strategy OnBoardingStrategy
+
+// args[0] = path to inventory file
 func parseArgs(args ...string) (string, error) {
 	if len(args) != 1 {
 		return "", fmt.Errorf("exactly one argument must be passed to the metal plugin, got %d", len(args))
@@ -52,6 +70,9 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
+	if inventoryMap == nil {
+		return nil, nil
+	}
 
 	return handler6, nil
 }
@@ -62,22 +83,40 @@ func loadConfig(args ...string) (map[string]string, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	log.Infof("Reading metal config file %s", path)
+	log.Debugf("Reading metal config file %s", path)
 	configData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	var config []api.Inventory
+	var config api.Config
 	if err = yaml.Unmarshal(configData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
 	inventories := make(map[string]string)
-	for _, i := range config {
-		if i.MacAddress != "" && i.Name != "" {
-			inventories[strings.ToLower(i.MacAddress)] = i.Name
+	// static inventory list has precedence, always
+	if len(config.Inventories) > 0 {
+		strategy = OnboardingFromStaticList
+		log.Debug("Using static list onboarding")
+		for _, i := range config.Inventories {
+			if i.MacAddress != "" && i.Name != "" {
+				inventories[strings.ToLower(i.MacAddress)] = i.Name
+			}
 		}
+	} else if len(config.Filter.MacPrefix) > 0 {
+		strategy = OnboardingFromMACPrefixFilter
+		namePrefix := defaultNamePrefix
+		if config.NamePrefix != "" {
+			namePrefix = config.NamePrefix
+		}
+		log.Debugf("Using MAC address prefix filter onboarding with name prefix '%s'", namePrefix)
+		for _, i := range config.Filter.MacPrefix {
+			inventories[strings.ToLower(i)] = namePrefix
+		}
+	} else {
+		log.Infof("No inventories loaded")
+		return nil, nil
 	}
 
 	log.Infof("Loaded metal config with %d inventories", len(inventories))
@@ -89,6 +128,9 @@ func setup4(args ...string) (handler.Handler4, error) {
 	inventoryMap, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
+	}
+	if inventoryMap == nil {
+		return nil, nil
 	}
 
 	return handler4, nil
@@ -109,7 +151,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if err := applyEndpointForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 		return resp, false
 	}
@@ -123,7 +165,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	mac := req.ClientHWAddr
 
-	if err := applyEndpointForMACAddress(mac, ipamv1alpha1.CIPv4SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.CIPv4SubnetType); err != nil {
 		log.Errorf("Could not apply peer address: %s", err)
 		return resp, false
 	}
@@ -132,27 +174,26 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	return resp, false
 }
 
-func applyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
-	inventoryName, ok := inventoryMap[strings.ToLower(mac.String())]
-	if !ok {
-		// done here, return no error, next plugin
-		log.Printf("Unknown inventory MAC address: %s", mac.String())
+func ApplyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
+	inventoryName := GetInventoryEntryMatchingMACAddress(mac)
+	if inventoryName == "" {
+		log.Print("Unknown inventory, not processing")
 		return nil
 	}
 
-	ip, err := GetIPForMACAddress(mac, subnetFamily)
+	ip, err := GetIPAMIPAddressForMACAddress(mac, subnetFamily)
 	if err != nil {
-		return fmt.Errorf("could not get IP for MAC address %s: %s", mac.String(), err)
+		return fmt.Errorf("could not get IPAM IP for MAC address %s: %s", mac.String(), err)
 	}
 
 	if ip != nil {
 		if err := ApplyEndpointForInventory(inventoryName, mac, ip); err != nil {
 			return fmt.Errorf("could not apply endpoint for inventory: %s", err)
 		} else {
-			log.Infof("Successfully applied endpoint for inventory %s[%s]", inventoryName, mac.String())
+			log.Infof("Successfully applied endpoint for inventory %s (%s)", inventoryName, mac.String())
 		}
 	} else {
-		log.Infof("Could not find IP for MAC address %s", mac.String())
+		log.Infof("Could not find IPAM IP for MAC address %s", mac.String())
 	}
 
 	return nil
@@ -167,29 +208,104 @@ func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	endpoint := &metalv1alpha1.Endpoint{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: metalv1alpha1.EndpointSpec{
-			MACAddress: mac.String(),
-			IP:         metalv1alpha1.MustParseIP(ip.String()),
-		},
-	}
-
 	cl := kubernetes.GetClient()
 	if cl == nil {
 		return fmt.Errorf("kubernetes client not initialized")
 	}
-
-	if _, err := controllerutil.CreateOrPatch(ctx, cl, endpoint, nil); err != nil {
-		return fmt.Errorf("failed to apply endpoint: %v", err)
+	if strategy == OnboardingFromStaticList {
+		// we do know the real name, so CreateOrPatch is fine
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+			Spec: metalv1alpha1.EndpointSpec{
+				MACAddress: mac.String(),
+				IP:         metalv1alpha1.MustParseIP(ip.String()),
+			},
+		}
+		if _, err := controllerutil.CreateOrPatch(ctx, cl, endpoint, nil); err != nil {
+			return fmt.Errorf("failed to apply endpoint: %v", err)
+		}
+	} else if strategy == OnboardingFromMACPrefixFilter {
+		// the (generated) name is unknown, so go for filtering
+		if existingEndpoint, _ := GetEndpointForMACAddress(mac); existingEndpoint != nil {
+			if existingEndpoint.Spec.IP.String() != ip.String() {
+				log.Debugf("Endpoint exists with different IP address, updating IP address %s to %s",
+					existingEndpoint.Spec.IP.String(), ip.String())
+				epPatch := client.MergeFrom(existingEndpoint.DeepCopy())
+				existingEndpoint.Spec.IP = metalv1alpha1.MustParseIP(ip.String())
+				if err := cl.Patch(ctx, existingEndpoint, epPatch); err != nil {
+					return fmt.Errorf("failed to patch endpoint: %v", err)
+				}
+			}
+			log.Debugf("Endpoint %s (%s) exists, nothing to do", mac.String(), ip.String())
+		} else {
+			log.Debugf("Endpoint %s (%s) does not exist, creating", mac.String(), ip.String())
+			endpoint := &metalv1alpha1.Endpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: name,
+				},
+				Spec: metalv1alpha1.EndpointSpec{
+					MACAddress: mac.String(),
+					IP:         metalv1alpha1.MustParseIP(ip.String()),
+				},
+			}
+			if err := cl.Create(ctx, endpoint); err != nil {
+				return fmt.Errorf("failed to create endpoint: %v", err)
+			}
+		}
+	} else {
+		return fmt.Errorf("unknown OnboardingStrategy %d", strategy)
 	}
 
 	return nil
 }
 
-func GetIPForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) (*netip.Addr, error) {
+func GetEndpointForMACAddress(mac net.HardwareAddr) (*metalv1alpha1.Endpoint, error) {
+	cl := kubernetes.GetClient()
+	if cl == nil {
+		return nil, fmt.Errorf("kubernetes client not initialized")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	epList := &metalv1alpha1.EndpointList{}
+	if err := cl.List(ctx, epList); err != nil {
+		return nil, fmt.Errorf("failed to list Endpoints: %v", err)
+	}
+
+	for _, ep := range epList.Items {
+		if ep.Spec.MACAddress == mac.String() {
+			return &ep, nil
+		}
+	}
+	return nil, nil
+}
+
+func GetInventoryEntryMatchingMACAddress(mac net.HardwareAddr) string {
+	if strategy == OnboardingFromStaticList {
+		inventoryName, ok := inventoryMap[strings.ToLower(mac.String())]
+		if !ok {
+			log.Debugf("Unknown inventory MAC address: %s", mac.String())
+		} else {
+			return inventoryName
+		}
+	} else if strategy == OnboardingFromMACPrefixFilter {
+		for i, _ := range inventoryMap {
+			if strings.HasPrefix(strings.ToLower(mac.String()), strings.ToLower(i)) {
+				return inventoryMap[i]
+			}
+		}
+		// we don't onboard by default yet, might change in the future
+		log.Debugf("Inventory MAC address %s does not match any inventory MAC prefix", mac.String())
+	} else {
+		log.Debugf("Unknown Onboarding strategy %d", strategy)
+	}
+
+	return ""
+}
+
+func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) (*netip.Addr, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
