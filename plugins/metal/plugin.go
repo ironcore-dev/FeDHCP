@@ -291,7 +291,7 @@ func GetInventoryEntryMatchingMACAddress(mac net.HardwareAddr) string {
 			return inventoryName
 		}
 	} else if strategy == OnboardingFromMACPrefixFilter {
-		for i, _ := range inventoryMap {
+		for i := range inventoryMap {
 			if strings.HasPrefix(strings.ToLower(mac.String()), strings.ToLower(i)) {
 				return inventoryMap[i]
 			}
