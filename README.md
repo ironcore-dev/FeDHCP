@@ -72,13 +72,29 @@ As for in-band, a kubernetes namespace shall be passed as a parameter. Further, 
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
 ### Configuration
-Path to an inventory yaml shall be passed as a string. It represents a list of machines as follows:
+Path to an inventory yaml shall be passed as a string. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `inventory.yaml`, the static list gets a precedence, so the filter will be ignored.
+
+Providing an explicit static inventory list in `inventory.yaml` goes as follows:
 ```yaml
-- name: server-01
-  macAddress: 00:1A:2B:3C:4D:5E
-- name: server-02
-  macAddress: 00:1A:2B:3C:4D:5F
+hosts:
+  - name: server-01
+    macAddress: 00:1A:2B:3C:4D:5E
+  - name: server-02
+    macAddress: 00:1A:2B:3C:4D:5F
 ```
+
+Providing a MAC address prefix filter list creates `Endpoint`s with a predefined prefix name. When the MAC address of an inventory does not match the prefix, the inventory will not be onboarded, so for now no "onboarding by default" occurs. Obviously a full MAC address is a valid prefix filter.
+To get inventories with certain MACs onboarded, the following `inventory.yaml` shall be specified:
+```yaml
+namePrefix: server- # optional prefix, default: "compute-"
+filter:
+  macPrefix:
+    - 00:1A:2B:3C:4D:5E
+    - 00:1A:2B:3C:4D:5F
+    - 00:AA:BB
+```
+The inventories above will get auto-generated names like `server-aybz`.
+
 ### Notes
 - supports both IPv4 and IPv6
 - IPv6 relays are supported, IPv4 are not
