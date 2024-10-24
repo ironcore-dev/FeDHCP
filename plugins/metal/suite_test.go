@@ -148,10 +148,11 @@ func SetupTest() *corev1.Namespace {
 		}()
 		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
 
-		inventoryMap, err = loadConfig(file.Name())
+		inventory, err = loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(inventoryMap).To(HaveKeyWithValue(machineWithIPAddressMACAddress, machineWithIPAddressName))
-		Expect(inventoryMap).To(HaveKeyWithValue(machineWithoutIPAddressMACAddress, machineWithoutIPAddressName))
+		Expect(inventory.Entries).To(HaveKeyWithValue(machineWithIPAddressMACAddress, machineWithIPAddressName))
+		Expect(inventory.Entries).To(HaveKeyWithValue(machineWithoutIPAddressMACAddress, machineWithoutIPAddressName))
+		Expect(inventory.Strategy).To(Equal(OnBoardingStrategyStatic))
 	})
 
 	return ns

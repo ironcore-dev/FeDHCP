@@ -38,23 +38,22 @@ var Plugin = plugins.Plugin{
 }
 
 // map MAC address to inventory name
-var inventoryMap map[string]string
+var inventory *Inventory
+
+type Inventory struct {
+	Entries  map[string]string
+	Strategy OnBoardingStrategy
+}
 
 // default inventory name prefix
 const defaultNamePrefix = "compute-"
 
-type OnBoardingStrategy int
+type OnBoardingStrategy string
 
 const (
-	OnboardingFromStaticList      = 1
-	OnboardingFromMACPrefixFilter = 2
+	OnBoardingStrategyStatic  OnBoardingStrategy = "Static"
+	OnboardingStrategyDynamic OnBoardingStrategy = "Dynamic"
 )
-
-// flag for onboarding strategy:
-// OnboardingFromStaticList: the name comes from a static inventory list and shall be taken "as is"
-//
-// OnboardingFromMACPrefixFilter: the name is only a prefix (default or custom), k8s will autogenerate it
-var strategy OnBoardingStrategy
 
 // args[0] = path to inventory file
 func parseArgs(args ...string) (string, error) {
@@ -66,18 +65,18 @@ func parseArgs(args ...string) (string, error) {
 
 func setup6(args ...string) (handler.Handler6, error) {
 	var err error
-	inventoryMap, err = loadConfig(args...)
+	inventory, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
 	}
-	if inventoryMap == nil {
+	if inventory == nil || len(inventory.Entries) == 0 {
 		return nil, nil
 	}
 
 	return handler6, nil
 }
 
-func loadConfig(args ...string) (map[string]string, error) {
+func loadConfig(args ...string) (*Inventory, error) {
 	path, err := parseArgs(args...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
@@ -94,42 +93,45 @@ func loadConfig(args ...string) (map[string]string, error) {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
-	inventories := make(map[string]string)
+	inv := &Inventory{}
+	entries := make(map[string]string)
 	// static inventory list has precedence, always
 	if len(config.Inventories) > 0 {
-		strategy = OnboardingFromStaticList
+		inv.Strategy = OnBoardingStrategyStatic
 		log.Debug("Using static list onboarding")
 		for _, i := range config.Inventories {
 			if i.MacAddress != "" && i.Name != "" {
-				inventories[strings.ToLower(i.MacAddress)] = i.Name
+				entries[strings.ToLower(i.MacAddress)] = i.Name
 			}
 		}
 	} else if len(config.Filter.MacPrefix) > 0 {
-		strategy = OnboardingFromMACPrefixFilter
+		inv.Strategy = OnboardingStrategyDynamic
 		namePrefix := defaultNamePrefix
 		if config.NamePrefix != "" {
 			namePrefix = config.NamePrefix
 		}
 		log.Debugf("Using MAC address prefix filter onboarding with name prefix '%s'", namePrefix)
 		for _, i := range config.Filter.MacPrefix {
-			inventories[strings.ToLower(i)] = namePrefix
+			entries[strings.ToLower(i)] = namePrefix
 		}
 	} else {
 		log.Infof("No inventories loaded")
 		return nil, nil
 	}
 
-	log.Infof("Loaded metal config with %d inventories", len(inventories))
-	return inventories, nil
+	inv.Entries = entries
+
+	log.Infof("Loaded metal config with %d inventories", len(entries))
+	return inv, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
 	var err error
-	inventoryMap, err = loadConfig(args...)
+	inventory, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
 	}
-	if inventoryMap == nil {
+	if inventory == nil || len(inventory.Entries) == 0 {
 		return nil, nil
 	}
 
@@ -212,7 +214,9 @@ func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr
 	if cl == nil {
 		return fmt.Errorf("kubernetes client not initialized")
 	}
-	if strategy == OnboardingFromStaticList {
+
+	switch inventory.Strategy {
+	case OnBoardingStrategyStatic:
 		// we do know the real name, so CreateOrPatch is fine
 		endpoint := &metalv1alpha1.Endpoint{
 			ObjectMeta: metav1.ObjectMeta{
@@ -226,15 +230,17 @@ func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr
 		if _, err := controllerutil.CreateOrPatch(ctx, cl, endpoint, nil); err != nil {
 			return fmt.Errorf("failed to apply endpoint: %v", err)
 		}
-	} else if strategy == OnboardingFromMACPrefixFilter {
+	case OnboardingStrategyDynamic:
 		// the (generated) name is unknown, so go for filtering
 		if existingEndpoint, _ := GetEndpointForMACAddress(mac); existingEndpoint != nil {
 			if existingEndpoint.Spec.IP.String() != ip.String() {
 				log.Debugf("Endpoint exists with different IP address, updating IP address %s to %s",
 					existingEndpoint.Spec.IP.String(), ip.String())
-				epPatch := client.MergeFrom(existingEndpoint.DeepCopy())
+
+				existingEndpointBase := existingEndpoint.DeepCopy()
 				existingEndpoint.Spec.IP = metalv1alpha1.MustParseIP(ip.String())
-				if err := cl.Patch(ctx, existingEndpoint, epPatch); err != nil {
+
+				if err := cl.Patch(ctx, existingEndpoint, client.MergeFrom(existingEndpointBase)); err != nil {
 					return fmt.Errorf("failed to patch endpoint: %v", err)
 				}
 			}
@@ -254,8 +260,8 @@ func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr
 				return fmt.Errorf("failed to create endpoint: %v", err)
 			}
 		}
-	} else {
-		return fmt.Errorf("unknown OnboardingStrategy %d", strategy)
+	default:
+		return fmt.Errorf("unknown OnboardingStrategy %s", inventory.Strategy)
 	}
 
 	return nil
@@ -283,23 +289,24 @@ func GetEndpointForMACAddress(mac net.HardwareAddr) (*metalv1alpha1.Endpoint, er
 }
 
 func GetInventoryEntryMatchingMACAddress(mac net.HardwareAddr) string {
-	if strategy == OnboardingFromStaticList {
-		inventoryName, ok := inventoryMap[strings.ToLower(mac.String())]
+	switch inventory.Strategy {
+	case OnBoardingStrategyStatic:
+		inventoryName, ok := inventory.Entries[strings.ToLower(mac.String())]
 		if !ok {
 			log.Debugf("Unknown inventory MAC address: %s", mac.String())
 		} else {
 			return inventoryName
 		}
-	} else if strategy == OnboardingFromMACPrefixFilter {
-		for i := range inventoryMap {
+	case OnboardingStrategyDynamic:
+		for i := range inventory.Entries {
 			if strings.HasPrefix(strings.ToLower(mac.String()), strings.ToLower(i)) {
-				return inventoryMap[i]
+				return inventory.Entries[i]
 			}
 		}
 		// we don't onboard by default yet, might change in the future
 		log.Debugf("Inventory MAC address %s does not match any inventory MAC prefix", mac.String())
-	} else {
-		log.Debugf("Unknown Onboarding strategy %d", strategy)
+	default:
+		log.Debugf("Unknown Onboarding strategy %s", inventory.Strategy)
 	}
 
 	return ""

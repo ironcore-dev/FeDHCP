@@ -140,7 +140,7 @@ var _ = Describe("Endpoint", func() {
 
 		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(i).To(BeEmpty())
+		Expect(i.Entries).To(BeEmpty())
 	})
 
 	It("Should return a valid inventory list with default name prefix for non-empty MAC address filter", func() {
@@ -164,8 +164,8 @@ var _ = Describe("Endpoint", func() {
 
 		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(i).To(HaveKey("aa:bb:cc:dd:ee:ff"))
-		pref := i["aa:bb:cc:dd:ee:ff"]
+		Expect(i.Entries).To(HaveKey("aa:bb:cc:dd:ee:ff"))
+		pref := i.Entries["aa:bb:cc:dd:ee:ff"]
 		Expect(pref).To(HavePrefix(defaultNamePrefix))
 	})
 
@@ -191,8 +191,8 @@ var _ = Describe("Endpoint", func() {
 
 		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(i).To(HaveKey("aa:bb:cc:dd:ee:ff"))
-		pref := i["aa:bb:cc:dd:ee:ff"]
+		Expect(i.Entries).To(HaveKey("aa:bb:cc:dd:ee:ff"))
+		pref := i.Entries["aa:bb:cc:dd:ee:ff"]
 		Expect(pref).To(HavePrefix("server-"))
 	})
 
@@ -224,7 +224,7 @@ var _ = Describe("Endpoint", func() {
 
 		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(i).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
+		Expect(i.Entries).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
 	})
 
 	It("Should create an endpoint for IPv6 DHCP request from a known machine with IP address", func(ctx SpecContext) {
@@ -279,7 +279,7 @@ var _ = Describe("Endpoint", func() {
 		}()
 		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
 
-		inventoryMap, err = loadConfig(file.Name())
+		inventory, err = loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
 
 		stub, _ := dhcpv6.NewMessage()
@@ -413,7 +413,7 @@ var _ = Describe("Endpoint", func() {
 		}()
 		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
 
-		inventoryMap, err = loadConfig(file.Name())
+		inventory, err = loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
 
 		_, _ = handler4(req, stub)
