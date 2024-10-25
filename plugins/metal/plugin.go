@@ -95,8 +95,9 @@ func loadConfig(args ...string) (*Inventory, error) {
 
 	inv := &Inventory{}
 	entries := make(map[string]string)
+	switch {
 	// static inventory list has precedence, always
-	if len(config.Inventories) > 0 {
+	case len(config.Inventories) > 0:
 		inv.Strategy = OnBoardingStrategyStatic
 		log.Debug("Using static list onboarding")
 		for _, i := range config.Inventories {
@@ -104,7 +105,7 @@ func loadConfig(args ...string) (*Inventory, error) {
 				entries[strings.ToLower(i.MacAddress)] = i.Name
 			}
 		}
-	} else if len(config.Filter.MacPrefix) > 0 {
+	case len(config.Filter.MacPrefix) > 0:
 		inv.Strategy = OnboardingStrategyDynamic
 		namePrefix := defaultNamePrefix
 		if config.NamePrefix != "" {
@@ -114,7 +115,7 @@ func loadConfig(args ...string) (*Inventory, error) {
 		for _, i := range config.Filter.MacPrefix {
 			entries[strings.ToLower(i)] = namePrefix
 		}
-	} else {
+	default:
 		log.Infof("No inventories loaded")
 		return nil, nil
 	}
