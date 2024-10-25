@@ -18,7 +18,7 @@ require (
 	k8s.io/api v0.31.2
 	k8s.io/apimachinery v0.31.2
 	k8s.io/client-go v0.31.2
-	sigs.k8s.io/controller-runtime v0.19.0
+	sigs.k8s.io/controller-runtime v0.19.1
 )
 
 replace github.com/coredhcp/coredhcp => github.com/damyan/coredhcp v0.0.0-20240911115402-66f9c25a305e
