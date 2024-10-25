@@ -5,10 +5,13 @@ package metal
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/ironcore-dev/controller-utils/modutils"
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -32,16 +35,18 @@ import (
 )
 
 const (
-	pollingInterval                   = 50 * time.Millisecond
-	eventuallyTimeout                 = 3 * time.Second
-	consistentlyDuration              = 1 * time.Second
-	machineWithIPAddressName          = "machine-with-ip-address"
-	machineWithoutIPAddressName       = "machine-without-ip-address"
-	machineWithIPAddressMACAddress    = "11:22:33:44:55:66"
-	machineWithoutIPAddressMACAddress = "47:11:47:11:47:11"
-	unknownMachineMACAddress          = "11:11:11:11:11:11"
-	linkLocalIPV6Prefix               = "fe80::"
-	privateIPV4Address                = "192.168.47.11"
+	pollingInterval                          = 50 * time.Millisecond
+	eventuallyTimeout                        = 3 * time.Second
+	consistentlyDuration                     = 1 * time.Second
+	machineWithIPAddressName                 = "machine-with-ip-address"
+	machineWithoutIPAddressName              = "machine-without-ip-address"
+	machineWithIPAddressMACAddress           = "11:22:33:44:55:66"
+	machineWithoutIPAddressMACAddress        = "47:11:47:11:47:11"
+	unknownMachineMACAddress                 = "11:11:11:11:11:11"
+	machineWithIPAddressMACAddressPrefFilter = "11:22:33"
+	linkLocalIPV6Prefix                      = "fe80::"
+	privateIPV4Address                       = "192.168.47.11"
+	inventoryConfigFile                      = "config.yaml"
 )
 
 var (
@@ -116,20 +121,38 @@ func SetupTest() *corev1.Namespace {
 		Expect(k8sClient.Create(ctx, ns)).To(Succeed(), "failed to create test namespace")
 		DeferCleanup(k8sClient.Delete, ns)
 
-		config := []api.Inventory{
-			{
-				Name:       machineWithIPAddressName,
-				MacAddress: machineWithIPAddressMACAddress,
+		configFile := inventoryConfigFile
+		data := api.Config{
+			NamePrefix: "server-",
+			Inventories: []api.Inventory{
+				{
+					Name:       machineWithIPAddressName,
+					MacAddress: machineWithIPAddressMACAddress,
+				},
+				{
+					Name:       machineWithoutIPAddressName,
+					MacAddress: machineWithoutIPAddressMACAddress,
+				},
 			},
-			{
-				Name:       machineWithoutIPAddressName,
-				MacAddress: machineWithoutIPAddressMACAddress,
+			Filter: api.Filter{
+				MacPrefix: []string{machineWithIPAddressMACAddressPrefFilter},
 			},
 		}
-		inventoryMap = make(map[string]string)
-		for _, i := range config {
-			inventoryMap[i.MacAddress] = i.Name
-		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		inventory, err = loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(inventory.Entries).To(HaveKeyWithValue(machineWithIPAddressMACAddress, machineWithIPAddressName))
+		Expect(inventory.Entries).To(HaveKeyWithValue(machineWithoutIPAddressMACAddress, machineWithoutIPAddressName))
+		Expect(inventory.Strategy).To(Equal(OnBoardingStrategyStatic))
 	})
 
 	return ns

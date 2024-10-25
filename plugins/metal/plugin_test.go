@@ -8,11 +8,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/api"
+
 	"gopkg.in/yaml.v2"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
-	"github.com/ironcore-dev/fedhcp/internal/api"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"github.com/mdlayher/netx/eui64"
@@ -117,12 +118,14 @@ var _ = Describe("Endpoint", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	It("Should return empty inventory list if the config file is malformed", func() {
-		configFile := "config.yaml"
-		data := []map[string]string{
-			{
-				"foo": "compute-1",
-				"bar": "aa:bb:cc:dd:ee:ff",
+	It("Should return an empty inventory for an empty list", func() {
+		configFile := inventoryConfigFile
+		data := api.Config{
+			Inventories: []api.Inventory{
+				{},
+			},
+			Filter: api.Filter{
+				MacPrefix: []string{},
 			},
 		}
 		configData, err := yaml.Marshal(data)
@@ -137,15 +140,16 @@ var _ = Describe("Endpoint", func() {
 
 		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(i).To(BeEmpty())
+		Expect(i.Entries).To(BeEmpty())
 	})
 
-	It("Should return a valid inventory list for a valid config", func() {
-		configFile := "config.yaml"
-		data := []api.Inventory{
-			{
-				Name:       "compute-1",
-				MacAddress: "aa:bb:cc:dd:ee:ff",
+	It("Should return a valid inventory list with default name prefix for non-empty MAC address filter", func() {
+		configFile := inventoryConfigFile
+		data := api.Config{
+			Filter: api.Filter{
+				MacPrefix: []string{
+					"aa:bb:cc:dd:ee:ff",
+				},
 			},
 		}
 		configData, err := yaml.Marshal(data)
@@ -160,7 +164,67 @@ var _ = Describe("Endpoint", func() {
 
 		i, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(i).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
+		Expect(i.Entries).To(HaveKey("aa:bb:cc:dd:ee:ff"))
+		pref := i.Entries["aa:bb:cc:dd:ee:ff"]
+		Expect(pref).To(HavePrefix(defaultNamePrefix))
+	})
+
+	It("Should return an inventory list with custom name prefix for non-empty MAC address filter and set prefix", func() {
+		configFile := inventoryConfigFile
+		data := api.Config{
+			NamePrefix: "server-",
+			Filter: api.Filter{
+				MacPrefix: []string{
+					"aa:bb:cc:dd:ee:ff",
+				},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		i, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(i.Entries).To(HaveKey("aa:bb:cc:dd:ee:ff"))
+		pref := i.Entries["aa:bb:cc:dd:ee:ff"]
+		Expect(pref).To(HavePrefix("server-"))
+	})
+
+	It("Should return a valid inventory list for a non-empty inventory section, precedence over MAC filter", func() {
+		configFile := inventoryConfigFile
+		data := api.Config{
+			NamePrefix: "server-",
+			Inventories: []api.Inventory{
+				{
+					Name:       "compute-1",
+					MacAddress: "aa:bb:cc:dd:ee:ff",
+				},
+			},
+			Filter: api.Filter{
+				MacPrefix: []string{
+					"aa:bb:cc:dd:ee:ff",
+				},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		i, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(i.Entries).To(HaveKeyWithValue("aa:bb:cc:dd:ee:ff", "compute-1"))
 	})
 
 	It("Should create an endpoint for IPv6 DHCP request from a known machine with IP address", func(ctx SpecContext) {
@@ -188,10 +252,62 @@ var _ = Describe("Endpoint", func() {
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
+	It("Should create an endpoint for IPv6 DHCP request from a known MAC prefix with IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
+		req, _ := dhcpv6.NewMessage()
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+
+		configFile := inventoryConfigFile
+		data := api.Config{
+			NamePrefix:  "foobar-",
+			Inventories: []api.Inventory{},
+			Filter: api.Filter{
+				MacPrefix: []string{machineWithIPAddressMACAddressPrefFilter},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		inventory, err = loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+
+		stub, _ := dhcpv6.NewMessage()
+		stub.MessageType = dhcpv6.MessageTypeReply
+		_, _ = handler6(relayedRequest, stub)
+
+		epList := &metalv1alpha1.EndpointList{}
+		Eventually(ObjectList(epList)).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(SatisfyAll(
+				HaveField("ObjectMeta.Name", HavePrefix("foobar-")),
+				HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+				HaveField("Spec.IP", metalv1alpha1.MustParseIP(linkLocalIPV6Addr.String())),
+			))),
+		))
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: epList.Items[0].Name,
+			},
+		}
+		DeferCleanup(k8sClient.Delete, endpoint)
+	})
+
 	It("Should not return an IP address for a known machine without IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
 
-		ip, err := GetIPForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType)
+		ip, err := GetIPAMIPAddressForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType)
 		Eventually(err).Should(BeNil())
 		Eventually(ip).Should(BeNil())
 	})
@@ -270,6 +386,53 @@ var _ = Describe("Endpoint", func() {
 			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
 			HaveField("Spec.IP", metalv1alpha1.MustParseIP(privateIPV4Address))))
 
+		DeferCleanup(k8sClient.Delete, endpoint)
+	})
+
+	It("Should create an endpoint for IPv4 DHCP request from a known MAC prefix with IP address", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+
+		req, _ := dhcpv4.NewDiscovery(mac)
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		configFile := inventoryConfigFile
+		data := api.Config{
+			NamePrefix:  "",
+			Inventories: []api.Inventory{},
+			Filter: api.Filter{
+				MacPrefix: []string{machineWithIPAddressMACAddressPrefFilter},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		inventory, err = loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+
+		_, _ = handler4(req, stub)
+
+		epList := &metalv1alpha1.EndpointList{}
+		Eventually(ObjectList(epList)).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(SatisfyAll(
+				HaveField("ObjectMeta.Name", HavePrefix(defaultNamePrefix)),
+				HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+				HaveField("Spec.IP", metalv1alpha1.MustParseIP(privateIPV4Address)),
+			))),
+		))
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: epList.Items[0].Name,
+			},
+		}
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
