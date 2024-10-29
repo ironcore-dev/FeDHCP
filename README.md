@@ -38,8 +38,16 @@ The IPAM plugin acts as a Kubernetes persistence plugin for IronCore's in-band n
 
 The IPAM plugin does not modify DHCP responses to the client, it rather creates (or updates) IP objects in Kubernetes. For each created IP object, the in-band plugin `onmetal` will lease an IP address to the client. Due to the nature of the IronCore's in-band network - `/127` client networks connected to each switch port - the IP object created has and address calculated by a simple "plus one" rule. In such a way each client gets a "plus one" of the switch port address it is connected to.
 ###  Configuration
-A kubernetes namespace shall be passed as a string. All IPAM processing (subnet identification, IP object creation/update) are done in that namespace.
-Further, as a second parameter, a comma-separated list of subnet names shall be passed. The IPAM plugin will do the subnet creation based on the IP address of the object to be created as well as on the vacant range of the corresponding subnet.
+The IPAM configuration consists of two parameters. First, a kubernetes namespace shall be defined. All IPAM processing (subnet identification, IP object creation/update) are done in that namespace.
+Further, a list of subnet names shall be passed. The IPAM plugin will do the subnet creation based on the IP address of the object to be created, as well as on the vacant range of the corresponding subnet.
+Providing those in `ipam_config.yaml` goes as follows:
+```yaml
+namespace: ipam-ns
+subnets:
+  - ipam-subnet1
+  - ipam-subnet2
+  - some-other-subnet
+```
 ### Notes
 - supports only IPv6
 - IPv6 relays are mandatory

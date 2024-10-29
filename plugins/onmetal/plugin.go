@@ -48,7 +48,7 @@ func loadConfig(args ...string) (*api.OnMetalConfig, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	log.Debugf("Reading metal config file %s", path)
+	log.Debugf("Reading onmetal config file %s", path)
 	configData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)

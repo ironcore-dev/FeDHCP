@@ -5,13 +5,15 @@ package ipam
 
 import (
 	"fmt"
-	"net"
-	"strings"
-
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
+
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v3"
+	"net"
+	"os"
 
 	"github.com/mdlayher/netx/eui64"
 )
@@ -27,24 +29,40 @@ var (
 	k8sClient *K8sClient
 )
 
-func parseArgs(args ...string) (string, []string, error) {
-	if len(args) < 2 {
-		return "", []string{""}, fmt.Errorf("at least two arguments must be passed to ipam plugin, a namespace "+
-			"and a comma-separated subnet names list, got %d", len(args))
+// args[0] = path to config file
+func parseArgs(args ...string) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf("exactly one argument must be passed to the metal plugin, got %d", len(args))
+	}
+	return args[0], nil
+}
+
+func loadConfig(args ...string) (*api.IPAMConfig, error) {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	namespace := args[0]
-	subnetNames := strings.Split(args[1], ",")
-	return namespace, subnetNames, nil
+	log.Debugf("Reading ipam config file %s", path)
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	config := &api.IPAMConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+	return config, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	namespace, subnetNames, err := parseArgs(args...)
+	ipamConfig, err := loadConfig(args...)
 	if err != nil {
 		return nil, err
 	}
 
-	k8sClient, err = NewK8sClient(namespace, subnetNames)
+	k8sClient, err = NewK8sClient(ipamConfig.Namespace, ipamConfig.Subnets)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
