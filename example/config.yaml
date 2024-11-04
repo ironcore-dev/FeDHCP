@@ -19,17 +19,3 @@ server6:
         - pxeboot: tftp://[2001:db8::1]/ipxe/x86_64/ipxe http://[2001:db8::1]/ipxe/boot6
         # create Endpoint objects in kubernetes
         - metal: metal_config.yaml
-
----
-# metal_config.yaml
-hosts:
-    - name: server-01
-      macAddress: 00:1A:2B:3C:4D:5E
-    - name: server-02
-      macAddress: 00:1A:2B:3C:4D:5F
-namePrefix: server- # optional prefix, default: "compute-"
-filter:
-    macPrefix:
-        - 00:1A:2B:3C:4D:5E
-        - 00:1A:2B:3C:4D:5F
-        - 00:AA:BB
