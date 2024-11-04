@@ -88,7 +88,7 @@ func loadConfig(args ...string) (*Inventory, error) {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	var config api.Config
+	var config api.MetalConfig
 	if err = yaml.Unmarshal(configData, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}

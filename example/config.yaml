@@ -18,4 +18,4 @@ server6:
         # implement (i)PXE boot
         - pxeboot: tftp://[2001:db8::1]/ipxe/x86_64/ipxe http://[2001:db8::1]/ipxe/boot6
         # create Endpoint objects in kubernetes
-        - metal: inventory.yaml
+        - metal: metal_config.yaml

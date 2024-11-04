@@ -12,7 +12,7 @@ type Filter struct {
 	MacPrefix []string `yaml:"macPrefix"`
 }
 
-type Config struct {
+type MetalConfig struct {
 	NamePrefix  string      `yaml:"namePrefix"`
 	Inventories []Inventory `yaml:"hosts"`
 	Filter      Filter      `yaml:"filter"`

@@ -122,7 +122,7 @@ func SetupTest() *corev1.Namespace {
 		DeferCleanup(k8sClient.Delete, ns)
 
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			NamePrefix: "server-",
 			Inventories: []api.Inventory{
 				{

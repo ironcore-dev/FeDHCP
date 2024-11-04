@@ -120,7 +120,7 @@ var _ = Describe("Endpoint", func() {
 
 	It("Should return an empty inventory for an empty list", func() {
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			Inventories: []api.Inventory{
 				{},
 			},
@@ -145,7 +145,7 @@ var _ = Describe("Endpoint", func() {
 
 	It("Should return a valid inventory list with default name prefix for non-empty MAC address filter", func() {
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			Filter: api.Filter{
 				MacPrefix: []string{
 					"aa:bb:cc:dd:ee:ff",
@@ -171,7 +171,7 @@ var _ = Describe("Endpoint", func() {
 
 	It("Should return an inventory list with custom name prefix for non-empty MAC address filter and set prefix", func() {
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			NamePrefix: "server-",
 			Filter: api.Filter{
 				MacPrefix: []string{
@@ -198,7 +198,7 @@ var _ = Describe("Endpoint", func() {
 
 	It("Should return a valid inventory list for a non-empty inventory section, precedence over MAC filter", func() {
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			NamePrefix: "server-",
 			Inventories: []api.Inventory{
 				{
@@ -262,7 +262,7 @@ var _ = Describe("Endpoint", func() {
 		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
 
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			NamePrefix:  "foobar-",
 			Inventories: []api.Inventory{},
 			Filter: api.Filter{
@@ -396,7 +396,7 @@ var _ = Describe("Endpoint", func() {
 		stub, _ := dhcpv4.NewReplyFromRequest(req)
 
 		configFile := inventoryConfigFile
-		data := api.Config{
+		data := api.MetalConfig{
 			NamePrefix:  "",
 			Inventories: []api.Inventory{},
 			Filter: api.Filter{

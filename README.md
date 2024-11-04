@@ -72,9 +72,9 @@ As for in-band, a kubernetes namespace shall be passed as a parameter. Further, 
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
 ### Configuration
-Path to an inventory yaml shall be passed as a string. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `inventory.yaml`, the static list gets a precedence, so the filter will be ignored.
+The metal configuration consists of an inventory list. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored.
 
-Providing an explicit static inventory list in `inventory.yaml` goes as follows:
+Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
 ```yaml
 hosts:
   - name: server-01
@@ -84,7 +84,7 @@ hosts:
 ```
 
 Providing a MAC address prefix filter list creates `Endpoint`s with a predefined prefix name. When the MAC address of an inventory does not match the prefix, the inventory will not be onboarded, so for now no "onboarding by default" occurs. Obviously a full MAC address is a valid prefix filter.
-To get inventories with certain MACs onboarded, the following `inventory.yaml` shall be specified:
+To get inventories with certain MACs onboarded, the following `metal_config.yaml` shall be specified:
 ```yaml
 namePrefix: server- # optional prefix, default: "compute-"
 filter:
