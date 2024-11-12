@@ -11,6 +11,9 @@ import (
 	"os"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -191,7 +194,11 @@ func ApplyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.
 
 	if ip != nil {
 		if err := ApplyEndpointForInventory(inventoryName, mac, ip); err != nil {
-			return fmt.Errorf("could not apply endpoint for inventory: %s", err)
+			if errors.IsAlreadyExists(err) {
+				log.Debugf("Endpoint %s (%s) exists, nothing to do", mac.String(), ip.String())
+			} else {
+				return fmt.Errorf("could not apply endpoint for inventory: %s", err)
+			}
 		} else {
 			log.Infof("Successfully applied endpoint for inventory %s (%s)", inventoryName, mac.String())
 		}
@@ -244,8 +251,12 @@ func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr
 				if err := cl.Patch(ctx, existingEndpoint, client.MergeFrom(existingEndpointBase)); err != nil {
 					return fmt.Errorf("failed to patch endpoint: %v", err)
 				}
+			} else {
+				return errors.NewAlreadyExists(
+					schema.GroupResource{Group: metalv1alpha1.GroupVersion.Group, Resource: "Endpoints"},
+					existingEndpoint.Name,
+				)
 			}
-			log.Debugf("Endpoint %s (%s) exists, nothing to do", mac.String(), ip.String())
 		} else {
 			log.Debugf("Endpoint %s (%s) does not exist, creating", mac.String(), ip.String())
 			endpoint := &metalv1alpha1.Endpoint{
