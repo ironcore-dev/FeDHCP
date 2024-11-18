@@ -31,16 +31,16 @@ func Init6() {
 		},
 	}
 
-	configData, err := yaml.Marshal(data)
+	configData, _ := yaml.Marshal(data)
 
-	file, err := os.CreateTemp("", "config.yaml")
+	file, _ := os.CreateTemp("", "config.yaml")
 	defer func() {
 		_ = file.Close()
 		_ = os.Remove(file.Name())
 	}()
 	_ = os.WriteFile(file.Name(), configData, 0644)
 
-	_, err = setup6(file.Name())
+	_, err := setup6(file.Name())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -295,16 +295,16 @@ func TestPrefixDelegationNotRequested7(t *testing.T) {
 		},
 	}
 
-	configData, err := yaml.Marshal(data)
+	configData, _ := yaml.Marshal(data)
 
-	file, err := os.CreateTemp("", "config.yaml")
+	file, _ := os.CreateTemp("", "config.yaml")
 	defer func() {
 		_ = file.Close()
 		_ = os.Remove(file.Name())
 	}()
 	_ = os.WriteFile(file.Name(), configData, 0644)
 
-	_, err = setup6(file.Name())
+	_, err := setup6(file.Name())
 	if err == nil {
 		t.Fatal("no error occurred when providing wrong prefix delegation length, but it should have")
 	}
