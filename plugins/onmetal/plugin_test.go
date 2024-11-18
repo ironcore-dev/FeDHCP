@@ -5,7 +5,11 @@ package onmetal
 
 import (
 	"net"
+	"os"
 	"testing"
+
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v3"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
 )
@@ -17,13 +21,26 @@ const (
 )
 
 var (
-	expectedIPAddress6 = net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
-	expectedIAID       = [4]byte{1, 2, 3, 4}
-	expectedPrefix     = "2001:db8:1111:2222:3333::/80"
+	expectedIAID = [4]byte{1, 2, 3, 4}
 )
 
 func Init6() {
-	_, err := setup6()
+	data := api.OnMetalConfig{
+		PrefixDelegation: api.PrefixDelegation{
+			Length: 80,
+		},
+	}
+
+	configData, _ := yaml.Marshal(data)
+
+	file, _ := os.CreateTemp("", "config.yaml")
+	defer func() {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+	}()
+	_ = os.WriteFile(file.Name(), configData, 0644)
+
+	_, err := setup6(file.Name())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,9 +48,19 @@ func Init6() {
 
 /* parametrization */
 func TestWrongNumberArgs(t *testing.T) {
-	_, err := setup6("not-needed-arg")
+	_, err := setup6()
 	if err == nil {
-		t.Fatal("no error occurred when providing wrong number of args (1), but it should have")
+		t.Fatal("no error occurred when not providing a configuration file path, but it should have")
+	}
+
+	_, err = setup6("non-existing.yaml")
+	if err == nil {
+		t.Fatal("no error occurred when providing non existing configuration path, but it should have")
+	}
+
+	_, err = setup6("foo", "bar")
+	if err == nil {
+		t.Fatal("no error occurred when providing wrong number of args (2), but it should have")
 	}
 }
 
@@ -91,6 +118,7 @@ func TestIPAddressRequested6(t *testing.T) {
 		t.Errorf("expected IAID %d, got %d", expectedIAID, iana.IaId)
 	}
 
+	expectedIPAddress6 := net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
 	if !addr.Equal(expectedIPAddress6) {
 		t.Errorf("expected IPv6 address %v, got %v", expectedIPAddress6, iana.Options.OneAddress().IPv6Addr)
 	}
@@ -217,6 +245,7 @@ func TestPrefixDelegationRequested6(t *testing.T) {
 		t.Errorf("expected IAID %d, got %d", expectedIAID, iapd.IaId)
 	}
 
+	expectedPrefix := "2001:db8:1111:2222:3333::/80"
 	if pref.String() != expectedPrefix {
 		t.Errorf("expected prefix %v, got %v", expectedPrefix, pref)
 	}
@@ -255,5 +284,28 @@ func TestPrefixDelegationNotRequested6(t *testing.T) {
 	opts := resp.GetOption(dhcpv6.OptionIAPD)
 	if len(opts) != optionDisabled {
 		t.Fatalf("Expected %d IAPD option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+}
+
+func TestPrefixDelegationNotRequested7(t *testing.T) {
+	prefixDelegationLengthOutOfBounds := 128
+	data := api.OnMetalConfig{
+		PrefixDelegation: api.PrefixDelegation{
+			Length: prefixDelegationLengthOutOfBounds,
+		},
+	}
+
+	configData, _ := yaml.Marshal(data)
+
+	file, _ := os.CreateTemp("", "config.yaml")
+	defer func() {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+	}()
+	_ = os.WriteFile(file.Name(), configData, 0644)
+
+	_, err := setup6(file.Name())
+	if err == nil {
+		t.Fatal("no error occurred when providing wrong prefix delegation length, but it should have")
 	}
 }

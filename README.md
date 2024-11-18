@@ -48,9 +48,14 @@ Further, as a second parameter, a comma-separated list of subnet names shall be 
 - depends on [IPAM operator](https://github.com/ironcore-dev/ipam)
 
 ## OnMetal
-The OnMetal plugin leases a [non temporary IPv6 address](https://datatracker.ietf.org/doc/html/rfc8415#section-6.2) to an in-band client, based on the algorithm described above.
+The OnMetal plugin leases a [non temporary IPv6 address](https://datatracker.ietf.org/doc/html/rfc8415#section-6.2) to an in-band client, based on the algorithm described above. Additionally, when requested from the client, a prefix delegation with preconfigured length is leased. Currently multiple prefix delegations are not supported, client prefix delegation length proposals are ignored completely. The prefix delegation length should be in the range 1 <= length <= 127.
 ### Configuration
-No configuration is needed
+The onmetal configuration consists of the prefix delegation length only.
+Providing the length in `onmetal_config.yaml` goes as follows:
+```yaml
+prefixDelegation:
+  length: 64
+```
 ### Notes
 - supports only IPv6
 - IPv6 relays are mandatory

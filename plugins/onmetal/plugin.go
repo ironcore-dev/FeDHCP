@@ -6,7 +6,11 @@ package onmetal
 import (
 	"fmt"
 	"net"
+	"os"
 	"time"
+
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -21,19 +25,52 @@ var Plugin = plugins.Plugin{
 	Setup6: setup6,
 }
 
-var mask80 = net.CIDRMask(prefixLength, 128)
+var prefixLength int
 
 const (
-	preferredLifeTime = 24 * time.Hour
-	validLifeTime     = 24 * time.Hour
-	prefixLength      = 80
+	preferredLifeTime         = 24 * time.Hour
+	validLifeTime             = 24 * time.Hour
+	prefixDelegationLengthMin = 1
+	prefixDelegationLengthMax = 127
 )
 
-func setup6(args ...string) (handler.Handler6, error) {
-	if len(args) != 0 {
-		return nil, fmt.Errorf("no arguments expected, got %d", len(args))
+// args[0] = path to config file
+func parseArgs(args ...string) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf("exactly one argument must be passed to the onmetal plugin, got %d", len(args))
 	}
-	log.Printf("loaded onmetal plugin for DHCPv6.")
+	return args[0], nil
+}
+
+func loadConfig(args ...string) (*api.OnMetalConfig, error) {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	log.Debugf("Reading metal config file %s", path)
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	config := &api.OnMetalConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+	return config, nil
+}
+
+func setup6(args ...string) (handler.Handler6, error) {
+	onMetalConfig, err := loadConfig(args...)
+	if err != nil {
+		return nil, err
+	}
+
+	prefixLength = onMetalConfig.PrefixDelegation.Length
+	if prefixLength < prefixDelegationLengthMin || prefixLength > prefixDelegationLengthMax {
+		return nil, fmt.Errorf("invalid prefix length: %d", prefixLength)
+	}
 
 	return handler6, nil
 }
@@ -79,6 +116,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	optIAPD := m.Options.OneIAPD()
 	T1 := preferredLifeTime
 	T2 := validLifeTime
+	var mask80 = net.CIDRMask(prefixLength, 128)
 
 	if optIAPD != nil {
 		if optIAPD.T1 != 0 {
