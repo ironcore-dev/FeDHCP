@@ -12,7 +12,7 @@ server6:
         # add leased IPs to ironcore's IPAM
         - ipam: ipam-ns ipam-subnet1,ipam-subnet2,some-other-subnet
         # lease IPs based on /127 subnets coming from relays running on the switches
-        - onmetal:
+        - onmetal: onmetal_config.yaml
         # announce DNS servers per DHCP
         - dns: 2001:4860:4860::6464 2001:4860:4860::64
         # implement (i)PXE boot
