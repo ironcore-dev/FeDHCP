@@ -5,15 +5,17 @@ package ipam
 
 import (
 	"fmt"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
 
+	"net"
+	"os"
+
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"gopkg.in/yaml.v3"
-	"net"
-	"os"
 
 	"github.com/mdlayher/netx/eui64"
 )
