@@ -6,7 +6,12 @@ package oob
 import (
 	"fmt"
 	"net"
+	"os"
+	"strings"
 	"time"
+
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v3"
 
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 
@@ -35,24 +40,45 @@ const (
 	UNKNOWN_IP = "0.0.0.0"
 )
 
-func parseArgs(args ...string) (string, string, error) {
-	if len(args) < 2 {
-		return "", "", fmt.Errorf("at least two arguments must be passed to ipam plugin, a namespace and a "+
-			"OOB subnet label, got %d", len(args))
+// args[0] = path to config file
+func parseArgs(args ...string) (string, error) {
+	if len(args) != 1 {
+		return "", fmt.Errorf("exactly one argument must be passed to the metal plugin, got %d", len(args))
+	}
+	return args[0], nil
+}
+
+func loadConfig(args ...string) (*api.OOBConfig, error) {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	namespace := args[0]
-	oobLabel := args[1]
-	return namespace, oobLabel, nil
+	log.Debugf("Reading ipam config file %s", path)
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	config := &api.OOBConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+
+	// TODO remove after https://github.com/ironcore-dev/FeDHCP/issues/221 is implemented
+	if !strings.Contains(config.SubnetLabel, "=") {
+		return nil, fmt.Errorf("invalid subnet label: %s, should be 'key=value'", config.SubnetLabel)
+	}
+	return config, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	namespace, oobLabel, err := parseArgs(args...)
+	oobConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	k8sClient, err = NewK8sClient(namespace, oobLabel)
+	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
@@ -117,12 +143,12 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	namespace, oobLabel, err := parseArgs(args...)
+	oobConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	k8sClient, err = NewK8sClient(namespace, oobLabel)
+	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
