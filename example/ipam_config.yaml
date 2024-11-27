@@ -1,0 +1,5 @@
+namespace: ipam-ns
+subnets:
+  - ipam-subnet1
+  - ipam-subnet2
+  - some-other-subnet

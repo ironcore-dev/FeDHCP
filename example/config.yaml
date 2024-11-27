@@ -10,7 +10,7 @@ server6:
         # implement HTTPBoot
         - httpboot: http://[2001:db8::1]/image.uki
         # add leased IPs to ironcore's IPAM
-        - ipam: ipam-ns ipam-subnet1,ipam-subnet2,some-other-subnet
+        - ipam: ipam_config.yaml
         # lease IPs based on /127 subnets coming from relays running on the switches
         - onmetal: onmetal_config.yaml
         # announce DNS servers per DHCP
