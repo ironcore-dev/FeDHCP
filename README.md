@@ -70,11 +70,16 @@ prefixDelegation:
 - can be used standalone or (in combination with the `ipam` plugin) in kubernetes
 
 ## OOB
-The OOB plugin leases an IP object to an out-of-band client, based on a subnet detection. The plugin is an equivalent of the metal+ipam kombination, meant to be used in IronCore's out-of-band network.
+The OOB plugin leases an IP address to an out-of-band client, based on a subnet detection. For each a corresponding IPAM IP object is created. Thus, the plugin is an equivalent of the onmetal+ipam combination, though it is meant to be used in IronCore's out-of-band network.
 
-An IP object with a random IP address from the subnet's vacant list is created in IPAM, the IP address is then leased back to the client. Currently no cleanup-on-release is performed, so clients with stable identifiers are guaranteed to become stable IP addresses.
+An IP object with a random IP address from the subnet's vacant list is created in IPAM, the IP address is then leased back to the client. Currently, no cleanup-on-release is performed, so clients with stable identifiers are guaranteed to become stable IP addresses.
 ### Configuration
 As for in-band, a kubernetes namespace shall be passed as a parameter. Further, a subnet label list in the form `value:key` shall be passed, it is used for subnet detection.
+Providing those in `oob_config.yaml` goes as follows:
+```yaml
+namespace: oob-ns
+subnetLabel: subnet=dhcp
+```
 ### Notes
 - supports both IPv4 and IPv6
 - IPv6 relays are supported, IPv4 are not
