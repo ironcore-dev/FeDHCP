@@ -6,7 +6,7 @@ require (
 	github.com/coredhcp/coredhcp v0.0.0-20240908184240-576af8676ffa
 	github.com/google/addlicense v1.1.1
 	github.com/insomniacslk/dhcp v0.0.0-20240829085014-a3a4c1f04475
-	github.com/ironcore-dev/controller-utils v0.9.5
+	github.com/ironcore-dev/controller-utils v0.9.6
 	github.com/ironcore-dev/ipam v0.2.2
 	github.com/ironcore-dev/metal-operator v0.0.0-20240910120000-bbd70c2a0eb0
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
