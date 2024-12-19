@@ -11,7 +11,7 @@ build:
 	go build -o bin/fedhcp ./main.go
 
 clean:
-	rm -rf bin
+	rm -f .bin/fedhcp
 
 run: all
 	sudo ./bin/fedhcp
