@@ -1,2 +1,29 @@
-tftpServer: tftp://[2001:db8::1]/ipxe/x86_64/ipxe
-ipxeServer: http://[2001:db8::1]/ipxe/boot6
+#tftpAddress:
+#  adm64:
+#    ipv6: tftp://[2001:db8::1]/ipxe/x86_64/amd64.efi
+#    ipv4: tftp://192.168.0.1/ipxe/x86_64/amd64.efi
+#  arm64:
+#    ipv6: tftp://[2001:db8::2]/ipxe/arm64/arm64.efi
+#    ipv4: tftp://192.168.0.2/ipxe/arm64/arm64.efi
+#ipxeAddress:
+#  amd64:
+#    ipv6: http://[2001:db8::1]/x86_64/boot6.pxe
+#    ipv4: http://192.168.0.1/x86_64/boot6.pxe
+#  arm64:
+#    ipv6: http://[2001:db8::2]/arm64/boot6.pxe
+#    ipv4: http://192.168.0.2/arm64/boot6.pxe
+
+tftpAddress:
+  ipv4:
+    amd64: tftp://192.168.0.1/x86_64/amd64.efi
+    arm64: tftp://192.168.0.1/aarch64/arm64.efi
+  ipv6:
+    amd64: tftp://[2001:db8::1]/x86_64/amd64.efi
+    arm64: tftp://[2001:db8::1]/aarch64/arm64.efi
+ipxeAddress:
+  ipv4:
+    amd64: http://192.168.0.2/ipxe/boot4.pxe
+    arm64: http://192.168.0.2/ipxe/boot4.pxe
+  ipv6:
+    amd64: http://[2001:db8::2]/ipxe/boot6.pxe
+    arm64: http://[2001:db8::2]/ipxe/boot6.pxe
