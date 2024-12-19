@@ -43,7 +43,7 @@ const (
 // args[0] = path to config file
 func parseArgs(args ...string) (string, error) {
 	if len(args) != 1 {
-		return "", fmt.Errorf("exactly one argument must be passed to the metal plugin, got %d", len(args))
+		return "", fmt.Errorf("exactly one argument must be passed to the oob plugin, got %d", len(args))
 	}
 	return args[0], nil
 }
