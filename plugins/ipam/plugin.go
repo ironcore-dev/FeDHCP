@@ -34,7 +34,7 @@ var (
 // args[0] = path to config file
 func parseArgs(args ...string) (string, error) {
 	if len(args) != 1 {
-		return "", fmt.Errorf("exactly one argument must be passed to the ipam plugin, got %d", len(args))
+		return "", fmt.Errorf("exactly one argument must be passed to the plugin, got %d", len(args))
 	}
 	return args[0], nil
 }
@@ -45,7 +45,7 @@ func loadConfig(args ...string) (*api.IPAMConfig, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	log.Debugf("Reading ipam config file %s", path)
+	log.Debugf("Reading config file %s", path)
 	configData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
