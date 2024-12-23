@@ -5,6 +5,7 @@ package kubernetes
 
 import (
 	"fmt"
+
 	"k8s.io/client-go/kubernetes/scheme"
 
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
