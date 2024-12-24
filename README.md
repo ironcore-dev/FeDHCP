@@ -13,7 +13,13 @@ Leases a single IP address to a single client as a [non temporary IPv6 address](
 
 Meant to be used in 1:1 client-server connection scenarios, for example a smartnic (Bluefield) leasing a single address to the host.
 ### Configuration
-The IP address to lease shall be passed as a string.
+The IP address to lease shall be passed as a string in `bulefield_config.yaml` goes as follows:
+
+```yaml
+bulefieldIP: 2001:db8::1
+```
+
+
 ### Notes
 - supports IPv6 addresses only
 - IPv6 relays are supported
