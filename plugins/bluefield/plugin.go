@@ -34,7 +34,7 @@ func parseArgs(args ...string) (string, error) {
 	return args[0], nil
 }
 
-func loadConfig(args ...string) (*api.BluefieldIPConfig, error) {
+func loadConfig(args ...string) (*api.BluefieldConfig, error) {
 	path, err := parseArgs(args...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
@@ -45,7 +45,7 @@ func loadConfig(args ...string) (*api.BluefieldIPConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
-	config := &api.BluefieldIPConfig{}
+	config := &api.BluefieldConfig{}
 	if err = yaml.Unmarshal(configData, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}

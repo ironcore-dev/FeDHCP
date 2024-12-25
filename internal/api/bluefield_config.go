@@ -3,6 +3,6 @@
 
 package api
 
-type BluefieldIPConfig struct {
+type BluefieldConfig struct {
 	BulefieldIP string `yaml:"bulefieldIP"`
 }
