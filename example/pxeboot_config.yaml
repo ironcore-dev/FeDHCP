@@ -1,0 +1,2 @@
+tftpServer: tftp://[2001:db8::1]/ipxe/x86_64/ipxe
+ipxeServer: http://[2001:db8::1]/ipxe/boot6

@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	ipxePath = "http://[2001:db8::1]/boot.ipxe"
-	tftpPath = "tftp://[2001:db8::1]/boot.efi"
+	ipxePath        = "http://[2001:db8::1]/boot.ipxe"
+	tftpPath        = "tftp://[2001:db8::1]/boot.efi"
+	pxebootFilePath = "pxeboot_config.yaml"
 )
 
 var (
@@ -42,12 +43,7 @@ func Init6(numOptBoot int) {
 /* parametrization */
 
 func TestWrongNumberArgs(t *testing.T) {
-	_, _, err := parseArgs(tftpPath, ipxePath, "not-needed-arg")
-	if err == nil {
-		t.Fatal("no error occurred when providing wrong number of args (3), but it should have")
-	}
-
-	_, _, err = parseArgs("only-one-arg")
+	_, err := parseArgs(pxebootFilePath)
 	if err == nil {
 		t.Fatal("no error occurred when providing wrong number of args (1), but it should have")
 	}

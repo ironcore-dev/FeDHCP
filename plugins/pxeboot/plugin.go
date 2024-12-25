@@ -14,16 +14,19 @@
 //
 // server6:
 //   - plugins:
-//   - pxeboot: tftp://[2001:db8::dead]/pxe-file http://[2001:db8:a::1]/ipxe-file
+//   - pxeboot: pxeboot_config.yaml
 
 package pxeboot
 
 import (
 	"fmt"
 	"net/url"
+	"os"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/iana"
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v2"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -45,19 +48,49 @@ var (
 	tftpBootFileOption, tftpServerNameOption, ipxeBootFileOption *dhcpv4.Option
 )
 
-func parseArgs(args ...string) (*url.URL, *url.URL, error) {
-	if len(args) != 2 {
-		return nil, nil, fmt.Errorf("exactly two arguments must be passed to PXEBOOT plugin, got %d", len(args))
+// args[0] = path to config file
+func parseArgs(args ...string) (string, error) {
+	print(args)
+	if len(args) != 1 {
+		return "", fmt.Errorf("exactly one argument must be passed to the pxeboot plugin, got %d", len(args))
+	}
+	return args[0], nil
+}
+
+func loadConfig(args ...string) (*api.PxebootConfig, error) {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	tftp, err := url.Parse(args[0])
+	log.Debugf("Reading ipam config file %s", path)
+	configData, err := os.ReadFile(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	ipxe, err := url.Parse(args[1])
+	config := &api.PxebootConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+
+	return config, nil
+}
+
+func parseConfig(args ...string) (*url.URL, *url.URL, error) {
+	pxebootConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	tftp, err := url.Parse(pxebootConfig.TFTPServer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid tftp url: %v", err)
+	}
+
+	ipxe, err := url.Parse(pxebootConfig.IPXEServer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid ipxe url: %v", err)
 	}
 
 	if tftp.Scheme != "tftp" || tftp.Host == "" || tftp.Path == "" || tftp.Path[0] != '/' || tftp.Path[1:] == "" {
@@ -67,13 +100,14 @@ func parseArgs(args ...string) (*url.URL, *url.URL, error) {
 	if (ipxe.Scheme != "http" && ipxe.Scheme != "https") || ipxe.Host == "" || ipxe.Path == "" {
 		return nil, nil, fmt.Errorf("malformed iPXE parameter, should be a valid URL")
 	}
+
 	return tftp, ipxe, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	tftp, ipxe, err := parseArgs(args...)
+	tftp, ipxe, err := parseConfig(args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
 	opt1 := dhcpv4.OptBootFileName(tftp.Path[1:])
@@ -133,9 +167,9 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	tftp, ipxe, err := parseArgs(args...)
+	tftp, ipxe, err := parseConfig(args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
 	tftpOption = dhcpv6.OptBootFileURL(tftp.String())
