@@ -6,7 +6,7 @@ server6:
         # mandatory for RFC compliance
         - server_id: LL 00:de:ad:be:ef:00
         # always provide the same IP address, no matter who's asking:
-        # - bluefield: 2001:db8::1
+        # - bluefield: bluefield_config.yaml
         # implement HTTPBoot
         - httpboot: http://[2001:db8::1]/image.uki
         # add leased IPs to ironcore's IPAM
