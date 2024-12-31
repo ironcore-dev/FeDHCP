@@ -10,7 +10,7 @@ require (
 	github.com/ironcore-dev/ipam v0.2.2
 	github.com/ironcore-dev/metal-operator v0.0.0-20240910120000-bbd70c2a0eb0
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
-	github.com/onsi/ginkgo/v2 v2.22.1
+	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	github.com/pkg/errors v0.9.1
 	gopkg.in/yaml.v2 v2.4.0
