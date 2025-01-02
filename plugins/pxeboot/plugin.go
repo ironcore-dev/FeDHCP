@@ -50,7 +50,6 @@ var (
 
 // args[0] = path to config file
 func parseArgs(args ...string) (string, error) {
-	print(args)
 	if len(args) != 1 {
 		return "", fmt.Errorf("exactly one argument must be passed to the pxeboot plugin, got %d", len(args))
 	}
