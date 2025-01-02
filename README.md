@@ -123,7 +123,13 @@ The PXEBoot plugin implements an (i)PXE network boot.
 
 When configured properly, the PXEBoot plugin will [break the PXE chainloading loop](https://ipxe.org/howto/dhcpd#pxe_chainloading). In such a way legacy PXE clients will be handed out an iPXE environment, whereas iPXE clients (classified based on the user class for [IPv6](https://datatracker.ietf.org/doc/html/rfc8415#section-21.15) and [IPv4](https://www.rfc-editor.org/rfc/rfc3004.html#section-4)) will get the HTTP PXE boot script.
 ### Configuration
-Two parameters shall be passed as strings: an TFTP address to an iPXE environment and an HTTP(s) boot script address. The order matters!
+Two parameters shall be passed as strings specified in the `pxeboot_config.yaml` an TFTP address to an iPXE environment and an HTTP(s) boot script address.
+
+````yaml
+tftpServer: tftp://[2001:db8::1]/ipxe/x86_64/ipxe
+ipxeServer: http://[2001:db8::1]/ipxe/boot6
+````
+
 ### Notes
 - relays are supported for both IPv4 and IPv6
 - TFTP server as well as HTTP boot script server must be provided externally
