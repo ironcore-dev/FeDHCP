@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -17,6 +18,8 @@ import (
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v2"
 )
 
 var bootFile4 string
@@ -33,11 +36,19 @@ var Plugin = plugins.Plugin{
 
 const httpClient = "HTTPClient"
 
-func parseArgs(args ...string) (*url.URL, bool, error) {
+func parseArgs(args ...string) (string, error) {
 	if len(args) != 1 {
-		return nil, false, fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
+		return "", fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
 	}
-	arg := args[0]
+	return args[0], nil
+}
+
+func parseConfig(args ...string) (*url.URL, bool, error) {
+	httpbootConfig, err := loadConfig(args...)
+	if err != nil {
+		return nil, false, fmt.Errorf("erorr loading httpboot plugin config: %v", err)
+	}
+	arg := httpbootConfig.BootServer
 	useBootService := strings.HasPrefix(arg, "bootservice:")
 	if useBootService {
 		arg = strings.TrimPrefix(arg, "bootservice:")
@@ -52,8 +63,26 @@ func parseArgs(args ...string) (*url.URL, bool, error) {
 	return parsedURL, useBootService, nil
 }
 
+func loadConfig(args ...string) (*api.HttpBootConfig, error) {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	log.Debugf("Reading httpboot config file %s", path)
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
+	}
+	config := &api.HttpBootConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+	return config, nil
+}
+
 func setup6(args ...string) (handler.Handler6, error) {
-	u, ubs, err := parseArgs(args...)
+	u, ubs, err := parseConfig(args...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
@@ -64,7 +93,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
-	u, ubs, err := parseArgs(args...)
+	u, ubs, err := parseConfig(args...)
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
