@@ -9,9 +9,8 @@ import (
 	"testing"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
-	"github.com/insomniacslk/dhcp/iana"
-
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/insomniacslk/dhcp/iana"
 )
 
 const (
@@ -21,10 +20,11 @@ const (
 
 var (
 	numberOptsBootFileURL int
+	pxebootFilePath       = []string{"pxeboot_config.yaml"}
 )
 
 func Init4() {
-	_, err := setup4(tftpPath, ipxePath)
+	_, err := setup4(pxebootFilePath...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func Init4() {
 func Init6(numOptBoot int) {
 	numberOptsBootFileURL = numOptBoot
 
-	_, err := setup6(tftpPath, ipxePath)
+	_, err := setup6(pxebootFilePath...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,23 +42,24 @@ func Init6(numOptBoot int) {
 /* parametrization */
 
 func TestWrongNumberArgs(t *testing.T) {
-	_, _, err := parseArgs(tftpPath, ipxePath, "not-needed-arg")
+	_, err := parseArgs("foo", "bar")
 	if err == nil {
-		t.Fatal("no error occurred when providing wrong number of args (3), but it should have")
+		t.Fatal("no error occurred when providing wrong number of args (2), but it should have")
 	}
 
-	_, _, err = parseArgs("only-one-arg")
+	_, err = parseArgs()
 	if err == nil {
-		t.Fatal("no error occurred when providing wrong number of args (1), but it should have")
+		t.Fatal("no error occurred when providing wrong number of args (0), but it should have")
 	}
 }
 
 func TestWrongArgs(t *testing.T) {
 	malformedTFTPPath := []string{"tftp://1.2.3.4/", "foo://1.2.3.4/boot.efi"}
 	malformedIPXEPath := []string{"httpfoo://www.example.com", "https:/1.2.3"}
+	malformedPxebootFilePath := []string{"malformed_pxeboot_config.yaml"}
 
 	for _, wrongTFTP := range malformedTFTPPath {
-		_, err := setup4(wrongTFTP, ipxePath)
+		_, err := setup4(malformedPxebootFilePath...)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong TFTP path %s, but it should have", wrongTFTP)
 		}
@@ -72,7 +73,7 @@ func TestWrongArgs(t *testing.T) {
 			t.Fatalf("IPXE boot file was set when providing wrong TFTP path %s, but it should be empty", wrongTFTP)
 		}
 
-		_, err = setup6(wrongTFTP, ipxePath)
+		_, err = setup6(malformedPxebootFilePath...)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong TFTP path %s, but it should have", wrongTFTP)
 		}
@@ -85,7 +86,7 @@ func TestWrongArgs(t *testing.T) {
 	}
 
 	for _, wrongIPXE := range malformedIPXEPath {
-		_, err := setup4(tftpPath, wrongIPXE)
+		_, err := setup4(malformedPxebootFilePath...)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong IPXE path %s, but it should have", wrongIPXE)
 		}
@@ -99,7 +100,7 @@ func TestWrongArgs(t *testing.T) {
 			t.Fatalf("IPXE boot file was set when providing wrong IPXE path %s, but it should be empty", wrongIPXE)
 		}
 
-		_, err = setup6(tftpPath, wrongIPXE)
+		_, err = setup6(malformedPxebootFilePath...)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong IPXE path %s, but it should have", wrongIPXE)
 		}

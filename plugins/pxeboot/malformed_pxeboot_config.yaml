@@ -1,0 +1,2 @@
+tftpServer: tftp://1.2.3.4/
+ipxeServer: httpfoo://www.example.com
