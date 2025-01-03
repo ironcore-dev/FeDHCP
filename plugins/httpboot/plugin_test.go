@@ -31,18 +31,20 @@ const (
 )
 
 var (
-	expectedHTTPClient = []byte("HTTPClient")
+	expectedHTTPClient     = []byte("HTTPClient")
+	httpbootFilePath       = []string{"httpboot_config.yaml"}
+	customHttpbootFilePath = []string{"custom_httpboot_config.yaml"}
 )
 
-func Init4(bootURL string) {
-	_, err := setup4(bootURL)
+func Init4(bootFileUrl ...string) {
+	_, err := setup4(bootFileUrl...)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func Init6(bootURL string) {
-	_, err := setup6(bootURL)
+func Init6(bootFileUrl ...string) {
+	_, err := setup6(bootFileUrl...)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,12 +53,12 @@ func Init6(bootURL string) {
 /* parametrization */
 
 func TestWrongNumberArgs(t *testing.T) {
-	_, _, err := parseArgs("foo", "bar")
+	_, err := parseArgs("foo", "bar")
 	if err == nil {
 		t.Fatal("no error occurred when providing wrong number of args (2), but it should have")
 	}
 
-	_, _, err = parseArgs()
+	_, err = parseArgs()
 	if err == nil {
 		t.Fatal("no error occurred when providing wrong number of args (0), but it should have")
 	}
@@ -69,12 +71,13 @@ func TestWrongArgs(t *testing.T) {
 		"bootfail:https://www.example.com/boot.uki",
 		"bootservice:tftp://www.example.com/boot.uki"}
 
+	malformedHttpbootFilePath := []string{"malformed_httpboot_config.yaml"}
 	for _, wrongURL := range malformedBootURL {
-		_, err := setup4(wrongURL)
+		_, err := setup4(malformedHttpbootFilePath...)
 		if err == nil {
 			t.Fatalf("no error occurred when parsing wrong boot param %s, but it should have", wrongURL)
 		}
-		_, err = setup6(wrongURL)
+		_, err = setup6(malformedHttpbootFilePath...)
 		if err == nil {
 			t.Fatalf("no error occurred when parsing wrong boot param %s, but it should have", wrongURL)
 		}
@@ -83,7 +86,7 @@ func TestWrongArgs(t *testing.T) {
 
 /* IPv6 */
 func TestGenericHTTPBootRequested6(t *testing.T) {
-	Init6(expectedGenericBootURL)
+	Init6(httpbootFilePath...)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -141,7 +144,7 @@ func TestGenericHTTPBootRequested6(t *testing.T) {
 }
 
 func TestMalformedHTTPBootRequested6(t *testing.T) {
-	Init6(expectedGenericBootURL)
+	Init6(httpbootFilePath...)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -210,7 +213,7 @@ func TestMalformedHTTPBootRequested6(t *testing.T) {
 }
 
 func TestHTTPBootNotRequested6(t *testing.T) {
-	Init6(expectedGenericBootURL)
+	Init6(httpbootFilePath...)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -251,7 +254,7 @@ func TestHTTPBootNotRequested6(t *testing.T) {
 }
 
 func TestHTTPBootNotRelayedMsg6(t *testing.T) {
-	Init6(expectedGenericBootURL)
+	Init6(httpbootFilePath...)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -287,7 +290,7 @@ func TestHTTPBootNotRelayedMsg6(t *testing.T) {
 
 /* IPv4 */
 func TestGenericHTTPBootRequested4(t *testing.T) {
-	Init4(expectedGenericBootURL)
+	Init4(httpbootFilePath...)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -325,7 +328,7 @@ func TestGenericHTTPBootRequested4(t *testing.T) {
 }
 
 func TestMalformedHTTPBootRequested4(t *testing.T) {
-	Init4(expectedGenericBootURL)
+	Init4(httpbootFilePath...)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -393,7 +396,7 @@ func TestMalformedHTTPBootRequested4(t *testing.T) {
 }
 
 func TestHTTPBootNotRequested4(t *testing.T) {
-	Init4(expectedGenericBootURL)
+	Init4(httpbootFilePath...)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -434,7 +437,7 @@ func TestCustomHTTPBootRequestedKnownIP(t *testing.T) {
 	go startBootServiceMock()
 	time.Sleep(time.Second * 1)
 
-	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+	Init6(customHttpbootFilePath...)
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
 		t.Fatal(err)
@@ -570,7 +573,7 @@ func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
 }
 
 func createHTTPBootRequest(t *testing.T) (error, *dhcpv6.RelayMessage) {
-	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+	Init6(customHttpbootFilePath...)
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
 		t.Fatal(err)
@@ -596,7 +599,7 @@ func createHTTPBootRequest(t *testing.T) (error, *dhcpv6.RelayMessage) {
 }
 
 func TestNoRelayCustomHTTPBootRequested(t *testing.T) {
-	Init6(fmt.Sprintf(bootServiceEndpoint, bootServicePort))
+	Init6(customHttpbootFilePath...)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
