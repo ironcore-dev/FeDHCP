@@ -16,6 +16,6 @@ server6:
         # announce DNS servers per DHCP
         - dns: 2001:4860:4860::6464 2001:4860:4860::64
         # implement (i)PXE boot
-        - pxeboot: tftp://[2001:db8::1]/ipxe/x86_64/ipxe http://[2001:db8::1]/ipxe/boot6
+        - pxeboot: pxeboot_config.yaml
         # create Endpoint objects in kubernetes
         - metal: metal_config.yaml
