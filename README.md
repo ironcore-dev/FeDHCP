@@ -90,9 +90,7 @@ subnetLabel: subnet=dhcp
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
 ### Configuration
-The metal configuration consists of an inventory list. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored.
-
-Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
+The metal configuration consists of an inventory list. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored. Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
 ```yaml
 hosts:
   - name: server-01
@@ -123,7 +121,7 @@ The PXEBoot plugin implements an (i)PXE network boot.
 
 When configured properly, the PXEBoot plugin will [break the PXE chainloading loop](https://ipxe.org/howto/dhcpd#pxe_chainloading). In such a way legacy PXE clients will be handed out an iPXE environment, whereas iPXE clients (classified based on the user class for [IPv6](https://datatracker.ietf.org/doc/html/rfc8415#section-21.15) and [IPv4](https://www.rfc-editor.org/rfc/rfc3004.html#section-4)) will get the HTTP PXE boot script.
 ### Configuration
-Two parameters shall be passed as strings specified in the `pxeboot_config.yaml` an TFTP address to an iPXE environment and an HTTP(s) boot script address.
+A TFTP address to an iPXE environment and an HTTP(s) boot script address shall be specified. Providing those in the `pxeboot_config.yaml` goes as follows:
 
 ````yaml
 tftpServer: tftp://[2001:db8::1]/ipxe/x86_64/ipxe

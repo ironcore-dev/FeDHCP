@@ -6,11 +6,16 @@ package pxeboot
 import (
 	"net"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
+
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/insomniacslk/dhcp/iana"
+
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -20,23 +25,65 @@ const (
 
 var (
 	numberOptsBootFileURL int
-	pxebootFilePath       = []string{"pxeboot_config.yaml"}
+	tempConfigFilePattern = "*-pxeboot_config.yaml"
+	validConfig           = &api.PxebootConfig{
+		TFTPServer: tftpPath,
+		IPXEServer: ipxePath,
+	}
 )
 
-func Init4() {
-	_, err := setup4(pxebootFilePath...)
+func createTempConfig(config api.PxebootConfig, tempDir string) (string, error) {
+	configData, err := yaml.Marshal(config)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
+
+	file, err := os.CreateTemp(tempDir, tempConfigFilePattern)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	configFile := file.Name()
+
+	err = os.WriteFile(configFile, configData, 0644)
+	if err != nil {
+		return "", err
+	}
+
+	return configFile, nil
 }
 
-func Init6(numOptBoot int) {
+func Init4(config api.PxebootConfig, tempDir string) error {
+	configFile, err := createTempConfig(config, tempDir)
+	if err != nil {
+		return err
+	}
+
+	_, err = setup4(configFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Init6(config api.PxebootConfig, tempDir string, numOptBoot int) error {
 	numberOptsBootFileURL = numOptBoot
 
-	_, err := setup6(pxebootFilePath...)
+	configFile, err := createTempConfig(config, tempDir)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+
+	_, err = setup6(configFile)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 /* parametrization */
@@ -54,12 +101,14 @@ func TestWrongNumberArgs(t *testing.T) {
 }
 
 func TestWrongArgs(t *testing.T) {
-	malformedTFTPPath := []string{"tftp://1.2.3.4/", "foo://1.2.3.4/boot.efi"}
-	malformedIPXEPath := []string{"httpfoo://www.example.com", "https:/1.2.3"}
-	malformedPxebootFilePath := []string{"malformed_pxeboot_config.yaml"}
-
+	malformedTFTPPath := []string{"tftp://example.com", "tftp:/example.com/boot.efi", "foo://example.com/boot.efi"}
 	for _, wrongTFTP := range malformedTFTPPath {
-		_, err := setup4(malformedPxebootFilePath...)
+		config := &api.PxebootConfig{
+			TFTPServer: wrongTFTP,
+			IPXEServer: ipxePath,
+		}
+		tempDir := t.TempDir()
+		err := Init4(*config, tempDir)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong TFTP path %s, but it should have", wrongTFTP)
 		}
@@ -73,7 +122,7 @@ func TestWrongArgs(t *testing.T) {
 			t.Fatalf("IPXE boot file was set when providing wrong TFTP path %s, but it should be empty", wrongTFTP)
 		}
 
-		_, err = setup6(malformedPxebootFilePath...)
+		err = Init6(*config, tempDir, 0)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong TFTP path %s, but it should have", wrongTFTP)
 		}
@@ -85,8 +134,18 @@ func TestWrongArgs(t *testing.T) {
 		}
 	}
 
+	malformedIPXEPath := []string{"https://example.com", "http:/www.example.com/boot.ipxe", "foo://example.com/boot.ipxe"}
 	for _, wrongIPXE := range malformedIPXEPath {
-		_, err := setup4(malformedPxebootFilePath...)
+		config := &api.PxebootConfig{
+			TFTPServer: tftpPath,
+			IPXEServer: wrongIPXE,
+		}
+		tempDir := t.TempDir()
+		err := Init4(*config, tempDir)
+		if err == nil {
+			t.Fatalf("no error occurred when providing wrong IPXE path %s, but it should have", wrongIPXE)
+		}
+		err = Init4(*config, tempDir)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong IPXE path %s, but it should have", wrongIPXE)
 		}
@@ -100,7 +159,7 @@ func TestWrongArgs(t *testing.T) {
 			t.Fatalf("IPXE boot file was set when providing wrong IPXE path %s, but it should be empty", wrongIPXE)
 		}
 
-		_, err = setup6(malformedPxebootFilePath...)
+		err = Init6(*config, tempDir, 0)
 		if err == nil {
 			t.Fatalf("no error occurred when providing wrong IPXE path %s, but it should have", wrongIPXE)
 		}
@@ -116,7 +175,8 @@ func TestWrongArgs(t *testing.T) {
 /* IPv6 */
 
 func TestPXERequested6(t *testing.T) {
-	Init6(1)
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 1)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -158,7 +218,8 @@ func TestPXERequested6(t *testing.T) {
 }
 
 func TestTFTPRequested6(t *testing.T) {
-	Init6(1)
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 1)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -195,7 +256,8 @@ func TestTFTPRequested6(t *testing.T) {
 }
 
 func TestWrongPXERequested6(t *testing.T) {
-	Init6(0)
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -232,7 +294,8 @@ func TestWrongPXERequested6(t *testing.T) {
 }
 
 func TestWrongTFTPRequested6(t *testing.T) {
-	Init6(0)
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -264,7 +327,8 @@ func TestWrongTFTPRequested6(t *testing.T) {
 }
 
 func TestPXENotRequested6(t *testing.T) {
-	Init6(0)
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -294,7 +358,8 @@ func TestPXENotRequested6(t *testing.T) {
 }
 
 func TestTFTPNotRequested6(t *testing.T) {
-	Init6(0)
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 0)
 
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
@@ -326,7 +391,8 @@ func TestTFTPNotRequested6(t *testing.T) {
 /* IPV4 */
 
 func TestPXERequested4(t *testing.T) {
-	Init4()
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -360,7 +426,8 @@ func TestPXERequested4(t *testing.T) {
 }
 
 func TestTFTPRequested4(t *testing.T) {
-	Init4()
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -401,7 +468,8 @@ func TestTFTPRequested4(t *testing.T) {
 }
 
 func TestPXENotRequested4(t *testing.T) {
-	Init4()
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -432,7 +500,8 @@ func TestPXENotRequested4(t *testing.T) {
 }
 
 func TestTFTPNotRequested4(t *testing.T) {
-	Init4()
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -467,7 +536,8 @@ func TestTFTPNotRequested4(t *testing.T) {
 }
 
 func TestWrongPXERequested4(t *testing.T) {
-	Init4()
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
@@ -501,7 +571,8 @@ func TestWrongPXERequested4(t *testing.T) {
 }
 
 func TestWrongTFTPRequested4(t *testing.T) {
-	Init4()
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
 
 	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
 		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},

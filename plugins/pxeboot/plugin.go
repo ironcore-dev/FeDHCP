@@ -62,7 +62,7 @@ func loadConfig(args ...string) (*api.PxebootConfig, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	log.Debugf("Reading ipam config file %s", path)
+	log.Debugf("Reading pxeboot config file %s", path)
 	configData, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %v", err)

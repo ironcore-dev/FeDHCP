@@ -1,2 +1,0 @@
-tftpServer: tftp://[2001:db8::1]/boot.efi
-ipxeServer: http://[2001:db8::1]/boot.ipxe
