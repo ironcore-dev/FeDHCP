@@ -4,5 +4,6 @@
 package api
 
 type HttpBootConfig struct {
-	BootServer string `yaml:"bootServer"`
+	BootServer     string `yaml:"bootServer"`
+	ClientSpecific bool   `yaml:"clientSpecific"`
 }

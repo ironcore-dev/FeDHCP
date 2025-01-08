@@ -49,7 +49,7 @@ func parseConfig(args ...string) (*url.URL, bool, error) {
 		return nil, false, fmt.Errorf("erorr loading httpboot plugin config: %v", err)
 	}
 	arg := httpbootConfig.BootServer
-	useBootService := strings.HasPrefix(arg, "bootservice:")
+	useBootService := httpbootConfig.ClientSpecific
 	if useBootService {
 		arg = strings.TrimPrefix(arg, "bootservice:")
 	}

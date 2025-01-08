@@ -1,1 +1,0 @@
-bootServer: "bootservice:http://[::1]:8888/httpboot"
