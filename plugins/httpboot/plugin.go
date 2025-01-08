@@ -48,11 +48,7 @@ func parseConfig(args ...string) (*url.URL, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("erorr loading httpboot plugin config: %v", err)
 	}
-	arg := httpbootConfig.BootServer
-	useBootService := httpbootConfig.ClientSpecific
-	if useBootService {
-		arg = strings.TrimPrefix(arg, "bootservice:")
-	}
+	arg := httpbootConfig.BootFile
 	parsedURL, err := url.Parse(arg)
 	if err != nil {
 		return nil, false, fmt.Errorf("invalid URL: %v", err)
@@ -60,7 +56,7 @@ func parseConfig(args ...string) (*url.URL, bool, error) {
 	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.Path == "" {
 		return nil, false, fmt.Errorf("malformed httpboot parameter, should be a valid HTTP(s) URL")
 	}
-	return parsedURL, useBootService, nil
+	return parsedURL, httpbootConfig.ClientSpecific, nil
 }
 
 func loadConfig(args ...string) (*api.HttpBootConfig, error) {

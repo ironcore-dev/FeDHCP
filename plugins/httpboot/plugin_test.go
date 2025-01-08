@@ -37,12 +37,12 @@ var (
 	expectedHTTPClient    = []byte("HTTPClient")
 	tempConfigFilePattern = "*-httpboot_config.yaml"
 	genericConfig         = &api.HttpBootConfig{
-		BootServer:     "https://[2001:db8::1]/boot.uki",
+		BootFile:       "https://[2001:db8::1]/boot.uki",
 		ClientSpecific: false,
 	}
 
 	customConfig = &api.HttpBootConfig{
-		BootServer:     "http://[::1]:8888/httpboot",
+		BootFile:       "http://[::1]:8888/httpboot",
 		ClientSpecific: true,
 	}
 )
@@ -121,7 +121,7 @@ func TestWrongArgs(t *testing.T) {
 		"bootservice:tftp://www.example.com/boot.uki"}
 
 	malformedConfig := &api.HttpBootConfig{
-		BootServer:     "ftp://www.example.com/boot.uki",
+		BootFile:       "ftp://www.example.com/boot.uki",
 		ClientSpecific: false,
 	}
 	tempDir := t.TempDir()
