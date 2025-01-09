@@ -6,9 +6,10 @@ package kubernetes
 import (
 	"fmt"
 
+	"k8s.io/client-go/kubernetes/scheme"
+
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,20 +17,19 @@ import (
 )
 
 var (
-	scheme     = runtime.NewScheme()
 	kubeClient client.Client
 	cfg        *rest.Config
 )
 
 func init() {
-	utilruntime.Must(ipamv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(metalv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(ipamv1alpha1.AddToScheme(scheme.Scheme))
+	utilruntime.Must(metalv1alpha1.AddToScheme(scheme.Scheme))
 }
 
 func InitClient() error {
 	cfg = config.GetConfigOrDie()
 	var err error
-	kubeClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	kubeClient, err = client.New(cfg, client.Options{})
 	if err != nil {
 		return fmt.Errorf("failed to create controller runtime client: %w", err)
 	}
