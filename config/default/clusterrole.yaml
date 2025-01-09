@@ -29,3 +29,9 @@ rules:
   - events
   verbs:
   - '*'
+- apiGroups:
+    - metal.ironcore.dev
+  resources:
+    - endpoints
+  verbs:
+    - '*'

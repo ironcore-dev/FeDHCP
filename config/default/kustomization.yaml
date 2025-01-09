@@ -8,6 +8,6 @@ resources:
   - sa.yaml
   - config.yaml
   - svc.yaml
-  - role.yaml
-  - rolebinding.yaml
+  - clusterrole.yaml
+  - clusterrolebinding.yaml
   - deployment.yaml
