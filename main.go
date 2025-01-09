@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
 package main
@@ -7,6 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/sirupsen/logrus"
+
+	"github.com/coredhcp/coredhcp/logger"
 
 	"github.com/coredhcp/coredhcp/config"
 	"github.com/coredhcp/coredhcp/plugins"
@@ -35,8 +39,6 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
 	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
 	"k8s.io/apimachinery/pkg/util/sets"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 var desiredPlugins = []*plugins.Plugin{
@@ -65,23 +67,18 @@ var desiredPlugins = []*plugins.Plugin{
 }
 
 var (
-	setupLog                   = ctrl.Log.WithName("setup")
+	log                        = logger.GetLogger("main")
 	pluginsRequiringKubernetes = sets.New[string]("oob", "ipam", "metal")
 )
 
 func main() {
-	var configFile string
+	var configFile, logLevel string
 	var listPlugins bool
 
 	flag.StringVar(&configFile, "config", "", "config file")
 	flag.BoolVar(&listPlugins, "list-plugins", false, "list plugins")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
+	flag.StringVar(&logLevel, "loglevel", "info", "log level (debug, info, warning, error, fatal, panic)")
 	flag.Parse()
-
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	if listPlugins {
 		for _, p := range desiredPlugins {
@@ -90,16 +87,23 @@ func main() {
 		os.Exit(0)
 	}
 
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		fmt.Println("Invalid log level specified: ", err)
+		os.Exit(1)
+	}
+	log.Logger.SetLevel(level)
+
 	cfg, err := config.Load(configFile)
 	if err != nil {
-		setupLog.Error(err, "Failed to load configuration", "ConfigFile", configFile)
+		log.Fatalf("Failed to load configuration %s: %v", configFile, err)
 		os.Exit(1)
 	}
 
 	// register plugins
 	for _, plugin := range desiredPlugins {
 		if err := plugins.RegisterPlugin(plugin); err != nil {
-			setupLog.Error(err, "Failed to register plugin", "Plugin", plugin.Name)
+			log.Fatalf("Failed to register plugin '%s': %v", plugin.Name, err)
 			os.Exit(1)
 		}
 	}
@@ -107,7 +111,7 @@ func main() {
 	// initialize kubernetes client, if needed
 	if shouldSetupKubeClient(cfg) {
 		if err := kubernetes.InitClient(); err != nil {
-			setupLog.Error(err, "Failed to initialize kubernetes client")
+			log.Fatalf("Failed to initialize kubernetes client: %v", err)
 			os.Exit(1)
 		}
 	}
@@ -115,11 +119,11 @@ func main() {
 	// start server
 	srv, err := server.Start(cfg)
 	if err != nil {
-		setupLog.Error(err, "Failed to start server")
+		log.Fatalf("Failed to start server: %v", err)
 		os.Exit(1)
 	}
 	if err := srv.Wait(); err != nil {
-		setupLog.Error(err, "Failed to wait server")
+		log.Fatalf("Failed to wait server: %v", err)
 	}
 }
 
