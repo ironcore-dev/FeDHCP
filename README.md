@@ -32,10 +32,10 @@ Delivers the HTTP boot image as a [BootFileURL](https://www.rfc-editor.org/rfc/r
 ### Configuration
 A single HTTP(s) URL shall be passed as a string in `httpboot_config.yaml` as given below. It must be either
 - a direct URL to an UKI (default UKI for all clients)
-- `clientSpecific: false` (for all clients).
-- `clientSpecific: true` to use a boot service delivering dynamically client-specific UKIs based on client identification
+- `clientSpecific: false` deliver default UKI for all clients via a static address
+- `clientSpecific: true` use a boot service delivering dynamically client-specific UKIs, based on client identification
 ````yaml
-bootFile: http://[2001:db8::1]/image.uki
+bootFile: http://[2001:db8::1]/default-image.uki
 clientSpecific: false
 ````
 ### Notes

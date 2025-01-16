@@ -1,2 +1,2 @@
-bootFile: http://[2001:db8::1]/image.uki
+bootFile: http://[2001:db8::1]/default-image.uki
 clientSpecific: false

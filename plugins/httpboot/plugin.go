@@ -38,15 +38,34 @@ const httpClient = "HTTPClient"
 
 func parseArgs(args ...string) (string, error) {
 	if len(args) != 1 {
-		return "", fmt.Errorf("exactly one argument must be passed to the httpboot plugin, got %d", len(args))
+		return "", fmt.Errorf("exactly one argument must be passed to the plugin, got %d", len(args))
 	}
 	return args[0], nil
+}
+
+func loadConfig(args ...string) (*api.HttpBootConfig, error) {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	log.Debugf("Reading config file %s", path)
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	config := &api.HttpBootConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+	return config, nil
 }
 
 func parseConfig(args ...string) (*url.URL, bool, error) {
 	httpbootConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, false, fmt.Errorf("erorr loading httpboot plugin config: %v", err)
+		return nil, false, fmt.Errorf("erorr loading plugin configuration: %v", err)
 	}
 	arg := httpbootConfig.BootFile
 	parsedURL, err := url.Parse(arg)
@@ -57,24 +76,6 @@ func parseConfig(args ...string) (*url.URL, bool, error) {
 		return nil, false, fmt.Errorf("malformed httpboot parameter, should be a valid HTTP(s) URL")
 	}
 	return parsedURL, httpbootConfig.ClientSpecific, nil
-}
-
-func loadConfig(args ...string) (*api.HttpBootConfig, error) {
-	path, err := parseArgs(args...)
-	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
-	}
-
-	log.Debugf("Reading httpboot config file %s", path)
-	configData, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %v", err)
-	}
-	config := &api.HttpBootConfig{}
-	if err = yaml.Unmarshal(configData, config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %v", err)
-	}
-	return config, nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
