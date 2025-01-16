@@ -30,9 +30,14 @@ Implements HTTP boot from [Unifed Kernel Image](https://uapi-group.org/specifica
 Delivers the HTTP boot image as a [BootFileURL](https://www.rfc-editor.org/rfc/rfc5970.html#section-3.2). Based on configuration it delivers either a client-specific UKIs dynamically or a default UKI for all clients. When client-specific UKIs are configured, IPv6 relays *must* be used, so the client can be identified based on its link-local address (which the relay always provides).
 
 ### Configuration
-A single HTTP(s) URL shall be passed as a string. It must be either
+A single HTTP(s) URL shall be passed as a string in `httpboot_config.yaml` as given below. It must be either
 - a direct URL to an UKI (default UKI for all clients)
-- magic identifier `bootservice:`+ a URL to a boot service delivering dynamically client-specific UKIs based on client identification
+- `clientSpecific: false` deliver default UKI for all clients via a static address
+- `clientSpecific: true` use a boot service delivering dynamically client-specific UKIs, based on client identification
+````yaml
+bootFile: http://[2001:db8::1]/default-image.uki
+clientSpecific: false
+````
 ### Notes
 - not tested on IPv4
 - IPv6 relays are supported
