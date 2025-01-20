@@ -66,7 +66,7 @@ func loadConfig(args ...string) (*api.OOBConfig, error) {
 	}
 
 	// TODO remove after https://github.com/ironcore-dev/FeDHCP/issues/221 is implemented
-	if !strings.Contains(config.SubnetLabel, "=") {
+	if !strings.Contains(config.SubnetLabel.Subnet, "=") {
 		return nil, fmt.Errorf("invalid subnet label: %s, should be 'key=value'", config.SubnetLabel)
 	}
 	return config, nil
@@ -78,7 +78,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel)
+	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel.Subnet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
@@ -148,7 +148,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel)
+	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel.Subnet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}

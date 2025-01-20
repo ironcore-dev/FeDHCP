@@ -3,7 +3,10 @@
 
 package api
 
+type SubnetLabel struct {
+	Subnet string `yaml:"subnet"`
+}
 type OOBConfig struct {
-	Namespace   string `yaml:"namespace"`
-	SubnetLabel string `yaml:"subnetLabel"`
+	Namespace   string      `yaml:"namespace"`
+	SubnetLabel SubnetLabel `yaml:"subnetLabel"`
 }
