@@ -215,7 +215,7 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 		if opt != nil {
 			resp.AddOption(*opt)
-			log.Debugf("Added option %s", ipxeOption)
+			log.Debugf("Added option %s", *opt)
 		}
 	}
 
