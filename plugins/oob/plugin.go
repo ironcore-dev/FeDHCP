@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -63,11 +62,6 @@ func loadConfig(args ...string) (*api.OOBConfig, error) {
 	config := &api.OOBConfig{}
 	if err = yaml.Unmarshal(configData, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
-	}
-
-	// TODO remove after https://github.com/ironcore-dev/FeDHCP/issues/221 is implemented
-	if !strings.Contains(config.SubnetLabel.Subnet, "=") {
-		return nil, fmt.Errorf("invalid subnet label: %s, should be 'key=value'", config.SubnetLabel)
 	}
 	return config, nil
 }
