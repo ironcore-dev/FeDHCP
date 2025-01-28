@@ -240,7 +240,7 @@ func (k K8sClient) doCreateIpamIP(
 	} else {
 		ipamIP, err = k.waitForCreation(ipamIP)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
+			return nil, fmt.Errorf("failed to create IP %w", err)
 		} else {
 			log.Infof("New IP %s (%s/%s) created in subnet %s", ipamIP.Status.Reserved.String(),
 				ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
