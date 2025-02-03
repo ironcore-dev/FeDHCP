@@ -61,8 +61,6 @@ var _ = Describe("OOB Plugin", func() {
 
 	Describe("Plugin Setup6", func() {
 		It("should successfully initialize the plugin with a valid config", func() {
-			//_, err := NewK8sClient("oob-ns", "subnet=dhcp")
-			//Expect(err).NotTo(HaveOccurred())
 			handler, err := setup6(testConfigPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(handler).NotTo(BeNil())

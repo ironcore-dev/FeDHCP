@@ -5,12 +5,16 @@ package oob
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/ironcore-dev/controller-utils/modutils"
+	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
@@ -24,6 +28,8 @@ import (
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -31,6 +37,7 @@ const (
 	pollingInterval      = 50 * time.Millisecond
 	eventuallyTimeout    = 3 * time.Second
 	consistentlyDuration = 1 * time.Second
+	oobConfigFile        = "config.yaml"
 )
 
 var (
@@ -55,7 +62,6 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			modutils.Dir("github.com/ironcore-dev/metal-operator", "config", "crd", "bases"),
 			modutils.Dir("github.com/ironcore-dev/ipam", "config", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
@@ -78,6 +84,7 @@ var _ = BeforeSuite(func() {
 	DeferCleanup(testEnv.Stop)
 
 	Expect(ipamv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
+	Expect(metalv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
 
@@ -90,6 +97,7 @@ var _ = BeforeSuite(func() {
 
 	// assign global k8s client in plugin
 	kubernetes.SetClient(&k8sClientTest)
+	kubernetes.SetConfig(cfg)
 })
 
 func SetupTest() *corev1.Namespace {
@@ -103,6 +111,27 @@ func SetupTest() *corev1.Namespace {
 		}
 		Expect(k8sClientTest.Create(ctx, ns)).To(Succeed(), "failed to create test namespace")
 		DeferCleanup(k8sClientTest.Delete, ns)
+
+		configFile := oobConfigFile
+		data := &api.OOBConfig{
+			Namespace:   "oob-ns",
+			SubnetLabel: "subnet=dhcp",
+		}
+
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		config, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(config.Namespace).To(HaveKeyWithValue("namespace", "oob-ns"))
+		Expect(config.SubnetLabel).To(HaveKeyWithValue("subnetLabel", "subnet=dhcp"))
 	})
 
 	return ns
