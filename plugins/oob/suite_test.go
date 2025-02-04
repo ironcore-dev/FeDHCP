@@ -34,10 +34,12 @@ import (
 )
 
 const (
-	pollingInterval      = 50 * time.Millisecond
-	eventuallyTimeout    = 3 * time.Second
-	consistentlyDuration = 1 * time.Second
-	oobConfigFile        = "config.yaml"
+	pollingInterval          = 50 * time.Millisecond
+	eventuallyTimeout        = 3 * time.Second
+	consistentlyDuration     = 1 * time.Second
+	oobConfigFile            = "config.yaml"
+	unknownMachineMACAddress = "11:11:11:11:11:11"
+	linkLocalIPV6Prefix      = "fe80::"
 )
 
 var (
@@ -98,6 +100,8 @@ var _ = BeforeSuite(func() {
 	// assign global k8s client in plugin
 	kubernetes.SetClient(&k8sClientTest)
 	kubernetes.SetConfig(cfg)
+
+	fmt.Printf("config: %v", cfg)
 })
 
 func SetupTest() *corev1.Namespace {
