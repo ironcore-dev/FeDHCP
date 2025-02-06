@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/ironcore-dev/controller-utils/modutils"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -34,12 +33,15 @@ import (
 )
 
 const (
-	pollingInterval          = 50 * time.Millisecond
-	eventuallyTimeout        = 3 * time.Second
-	consistentlyDuration     = 1 * time.Second
-	oobConfigFile            = "config.yaml"
-	unknownMachineMACAddress = "11:11:11:11:11:11"
-	linkLocalIPV6Prefix      = "fe80::"
+	pollingInterval                = 50 * time.Millisecond
+	eventuallyTimeout              = 3 * time.Second
+	consistentlyDuration           = 1 * time.Second
+	oobConfigFile                  = "config.yaml"
+	unknownMachineMACAddress       = "11:11:11:11:11:11"
+	linkLocalIPV6Prefix            = "fe80::"
+	subnetLabel                    = "subnet=dhcp"
+	machineWithIPAddressMACAddress = "11:22:33:44:55:66"
+	privateIPV4Address             = "192.168.47.11"
 )
 
 var (
@@ -101,7 +103,7 @@ var _ = BeforeSuite(func() {
 	kubernetes.SetClient(&k8sClientTest)
 	kubernetes.SetConfig(cfg)
 
-	fmt.Printf("config: %v", cfg)
+	//fmt.Printf("config: %v", cfg)
 })
 
 func SetupTest() *corev1.Namespace {
@@ -118,8 +120,8 @@ func SetupTest() *corev1.Namespace {
 
 		configFile := oobConfigFile
 		data := &api.OOBConfig{
-			Namespace:   "oob-ns",
-			SubnetLabel: "subnet=dhcp",
+			Namespace:   ns.Name,
+			SubnetLabel: subnetLabel,
 		}
 
 		configData, err := yaml.Marshal(data)
@@ -134,8 +136,8 @@ func SetupTest() *corev1.Namespace {
 
 		config, err := loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
-		Expect(config.Namespace).To(HaveKeyWithValue("namespace", "oob-ns"))
-		Expect(config.SubnetLabel).To(HaveKeyWithValue("subnetLabel", "subnet=dhcp"))
+		Expect(config.Namespace).To(Equal(ns.Name))
+		Expect(config.SubnetLabel).To(Equal(subnetLabel))
 	})
 
 	return ns

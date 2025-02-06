@@ -333,7 +333,7 @@ func (k K8sClient) getOOBNetworks(subnetType ipamv1alpha1.SubnetAddressType) []s
 	if err != nil {
 		log.Errorf("Error listing OOB subnets: %v", err)
 	}
-	fmt.Printf("subnet-list: %s", k.OobLabel)
+	fmt.Printf("OobLabel: %s", k.OobLabel)
 	fmt.Printf("subnet-list: %v", subnetList)
 	oobSubnetNames := []string{}
 	for _, subnet := range subnetList.Items {
