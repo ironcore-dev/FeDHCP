@@ -44,3 +44,7 @@ func SetClient(client *client.Client) {
 func GetClient() client.Client { return kubeClient }
 
 func GetConfig() *rest.Config { return cfg }
+
+func SetConfig(c *rest.Config) {
+	cfg = c
+}
