@@ -38,6 +38,7 @@ const (
 	linkLocalIPV6Prefix            = "fe80::"
 	subnetLabel                    = "subnet=dhcp"
 	machineWithIPAddressMACAddress = "11:22:33:44:55:66"
+	machineWithMacAddress          = "11:22:33:44:55:77"
 	privateIPV4Address             = "192.168.47.11"
 	ipamConfigFile                 = "config.yaml"
 )
