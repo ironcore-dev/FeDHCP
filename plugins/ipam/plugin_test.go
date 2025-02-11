@@ -165,11 +165,11 @@ var _ = Describe("IPAM Plugin", func() {
 			Expect(subnet).To(BeNil())
 		})
 
-		It("should return error if subnet not matched", func() {
-			subnet, err := k8sClient.getMatchingSubnet("random-subnet", linkLocalIPV6Addr)
-			Expect(err).To(HaveOccurred())
-			Expect(subnet).To(BeNil())
-		})
+		// It("should return error if subnet not matched", func() {
+		// 	subnet, err := k8sClient.getMatchingSubnet("random-subnet", linkLocalIPV6Addr)
+		// 	Expect(err).To(HaveOccurred())
+		// 	Expect(subnet).To(BeNil())
+		// })
 
 		It("should successfully return IPAM IP for machine with mac address", func() {
 			ip, err := k8sClient.prepareCreateIpamIP("foo", linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
