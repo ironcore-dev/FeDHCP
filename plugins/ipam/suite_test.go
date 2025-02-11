@@ -34,11 +34,9 @@ const (
 	pollingInterval                = 50 * time.Millisecond
 	eventuallyTimeout              = 3 * time.Second
 	consistentlyDuration           = 1 * time.Second
-	unknownMachineMACAddress       = "11:11:11:11:11:11"
 	linkLocalIPV6Prefix            = "fe80::"
-	subnetLabel                    = "subnet=dhcp"
 	machineWithIPAddressMACAddress = "11:22:33:44:55:66"
-	privateIPV4Address             = "192.168.47.11"
+	machineWithMacAddress          = "11:22:33:44:55:77"
 	ipamConfigFile                 = "config.yaml"
 )
 
@@ -73,7 +71,7 @@ var _ = BeforeSuite(func() {
 		// Note that you must have the required binaries setup under the bin directory to perform
 		// the tests directly. When we run make test it will be setup and used automatically.
 		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
-			fmt.Sprintf("1.30.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
+			fmt.Sprintf("1.32.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
 	}
 
 	var err error
@@ -132,6 +130,7 @@ func SetupTest() *corev1.Namespace {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(config.Namespace).To(Equal(ns.Name))
 		Expect(config.Subnets[0]).To(Equal("ipam-subnet1"))
+		Expect(config.Subnets[1]).To(Equal("ipam-subnet2"))
 	})
 
 	return ns
