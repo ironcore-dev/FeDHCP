@@ -141,82 +141,6 @@ var _ = Describe("IPAM Plugin", func() {
 		})
 	})
 
-	Describe("K8s Client tests", func() {
-		var (
-			linkLocalIPV6Addr net.IP
-			ipv6              *ipamv1alpha1.IP
-			k8sClient         *K8sClient
-		)
-
-		BeforeEach(func() {
-			By("creating an IPAM IP")
-			ipv6, linkLocalIPV6Addr = createTestIPAMIP(machineWithMacAddress, *ns)
-			Expect(ipv6).NotTo(BeNil())
-			Expect(linkLocalIPV6Addr).NotTo(BeNil())
-
-			k8sClient, err = NewK8sClient(ns.Name, []string{"foo"})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(k8sClient).NotTo(BeNil())
-		})
-
-		It("should successfully match the subnet", func() {
-			subnet, err := k8sClient.getMatchingSubnet("foo", linkLocalIPV6Addr)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(subnet).To(BeNil())
-		})
-
-		// It("should return error if subnet not matched", func() {
-		// 	subnet, err := k8sClient.getMatchingSubnet("random-subnet", linkLocalIPV6Addr)
-		// 	Expect(err).To(HaveOccurred())
-		// 	Expect(subnet).To(BeNil())
-		// })
-
-		It("should successfully return IPAM IP for machine with mac address", func() {
-			ip, err := k8sClient.prepareCreateIpamIP("foo", linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(ip).NotTo(BeNil())
-		})
-
-		It("should successfully create IPAM IP for machine with mac address", func() {
-			createIPError := k8sClient.doCreateIpamIP(ipv6)
-			Expect(createIPError).NotTo(HaveOccurred())
-		})
-
-		It("should successfully create IPAM IP for machine", func() {
-			createIPError := k8sClient.createIpamIP(linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
-			Expect(createIPError).NotTo(HaveOccurred())
-		})
-
-		// It("should return error, if create same IPAM IP for machine with same ip and same mac address", func() {
-		// 	err := k8sClient.doCreateIpamIP(ipv6)
-		// 	Expect(err).NotTo(HaveOccurred())
-		// 	//Expect(err.Error()).To(ContainSubstring("resourceVersion should not be set on objects to be created"))
-		// })
-
-		It("should return timeout error, if IPAM IP not deleted", func() {
-			err := k8sClient.waitForDeletion(ipv6)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("timeout reached, IP not deleted"))
-		})
-
-		// It("should return timeout error, if IPAM IP not deleted", func() {
-		// 	ipv6 := createTestIPAMIP(machineWithMacAddress, *ns)
-
-		// 	createIPError := k8sClient.doCreateIpamIP(ipv6)
-		// 	Expect(createIPError).NotTo(HaveOccurred())
-
-		// 	err = k8sClientTest.Get(context.TODO(), client.ObjectKeyFromObject(ipv6), ipv6)
-		// 	Expect(err).NotTo(HaveOccurred())
-
-		// 	err = k8sClient.waitForDeletion(ipv6)
-		// 	Expect(err).To(HaveOccurred())
-		// 	err1 := k8sClientTest.Delete(context.TODO(), ipv6)
-		// 	Expect(err1).NotTo(HaveOccurred())
-		// 	Expect(err.Error()).To(ContainSubstring("timeout reached, IP not deleted"))
-		// })
-
-	})
-
 	Describe("Common tests", func() {
 		It("return true checks the ip in CIDR", func() {
 			checkIP := checkIPv6InCIDR(linkLocalIPV6Addr, "fe80::/64")
@@ -253,6 +177,100 @@ var _ = Describe("IPAM Plugin", func() {
 			format := prettyFormat(ipv6.Spec)
 			Expect(format).ShouldNot(BeEmpty())
 		})
+	})
+})
+
+var _ = Describe("K8s Client tests", func() {
+	var (
+		linkLocalIPV6Addr net.IP
+		ipv6              *ipamv1alpha1.IP
+		k8sClient         *K8sClient
+		err               error
+	)
+
+	ns := SetupTest()
+
+	BeforeEach(func() {
+		By("creating an IPAM IP")
+		ipv6, linkLocalIPV6Addr = createTestIPAMIP(machineWithMacAddress, *ns)
+		Expect(ipv6).NotTo(BeNil())
+		Expect(linkLocalIPV6Addr).NotTo(BeNil())
+
+		k8sClient, err = NewK8sClient(ns.Name, []string{"foo"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient).NotTo(BeNil())
+	})
+
+	It("should successfully match the subnet", func() {
+		subnet, err := k8sClient.getMatchingSubnet("foo", linkLocalIPV6Addr)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(subnet).To(BeNil())
+	})
+
+	It("should return error if subnet not matched", func() {
+		subnet, err := k8sClient.getMatchingSubnet("random-subnet", linkLocalIPV6Addr)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(subnet).To(BeNil())
+	})
+
+	It("should return (nil, nil) if CIDR mismatch", func() {
+		subnet, err := k8sClient.getMatchingSubnet("foo", net.IP("11:22:33:44"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(subnet).To(BeNil())
+	})
+
+	It("should successfully return IPAM IP for machine with mac address", func() {
+		ip, err := k8sClient.prepareCreateIpamIP("foo", linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ip).NotTo(BeNil())
+	})
+
+	It("should return error failed to parse IP if invalid ip prefix", func() {
+		m, err := net.ParseMAC(machineWithIPAddressMACAddress)
+		Expect(err).NotTo(HaveOccurred())
+		i := net.ParseIP("fe80??::")
+		linkLocalIPV6Addr, err := eui64.ParseMAC(i, m)
+		Expect(err).To(HaveOccurred())
+
+		ip, err := k8sClient.prepareCreateIpamIP("foo", linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to parse IP"))
+		Expect(ip).To(BeNil())
+	})
+
+	It("should successfully return with (nil, nil) if IP already exists in subnet", func() {
+		m, err := net.ParseMAC(machineWithIPAddressMACAddress)
+		Expect(err).NotTo(HaveOccurred())
+		i := net.ParseIP("fe80::")
+		linkLocalIPV6Addr, err := eui64.ParseMAC(i, m)
+		Expect(err).NotTo(HaveOccurred())
+
+		ip, err := k8sClient.prepareCreateIpamIP("foo", linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ip).NotTo(BeNil())
+
+		createIPError := k8sClient.doCreateIpamIP(ip)
+		Expect(createIPError).NotTo(HaveOccurred())
+
+		sameip, err := k8sClient.prepareCreateIpamIP("foo", linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sameip).To(BeNil())
+	})
+
+	It("should successfully create IPAM IP for machine with mac address", func() {
+		createIPError := k8sClient.doCreateIpamIP(ipv6)
+		Expect(createIPError).NotTo(HaveOccurred())
+	})
+
+	It("should successfully create IPAM IP for machine", func() {
+		createIPError := k8sClient.createIpamIP(linkLocalIPV6Addr, net.HardwareAddr(machineWithIPAddressMACAddress))
+		Expect(createIPError).NotTo(HaveOccurred())
+	})
+
+	It("should return timeout error, if IPAM IP not deleted", func() {
+		err := k8sClient.waitForDeletion(ipv6)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("timeout reached, IP not deleted"))
 	})
 })
 
