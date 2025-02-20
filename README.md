@@ -24,6 +24,25 @@ bulefieldIP: 2001:db8::1
 - supports IPv6 addresses only
 - IPv6 relays are supported
 
+## Macfilter
+Takes decision to break the plugin chain if whitelisted/blacklisted MAC address is requested.
+
+### Configuration
+The MAC address shall be passed as a string in `macfilter_config.yaml` goes as follows:
+
+```yaml
+whiteList:
+  - AA:BB:CC:DD:EE:FF
+  - FF:EE:00:GG:HH:FF
+blackList:
+  - EE:00:FF:GG:HH:FF
+```
+
+
+### Notes
+- supports IPv6 addresses only
+- take precedence to whitlelist over blacklist MAC address 
+
 ## HTTPBoot
 Implements HTTP boot from [Unifed Kernel Image](https://uapi-group.org/specifications/specs/unified_kernel_image/).
 
