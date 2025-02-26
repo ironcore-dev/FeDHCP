@@ -24,9 +24,6 @@ const (
 	denyListMac          = "BB:BB:BB:BB:BB:CC"
 	allowListMacPrefix   = "AA:BB:CC"
 	denyListMacPrefix    = "BB:BB:BB"
-	otherdenyListMac     = "BB:BB:BB:BB:BB:DD"
-	invalidMac           = "AABBCCDDEEFF"
-	validMac             = "AA-BB-CC"
 	unmatchedMac         = "00:11:22:33:44:55"
 )
 
