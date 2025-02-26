@@ -53,42 +53,42 @@ var _ = Describe("Macfilter Plugin", func() {
 		})
 
 		It("should break the chain if allow list MAC address not matched", func() {
-			_, stop := handleDHCPv6(createMessage(unmatchedMac), nil)
+			_, stop := handler6(createMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should break the chain if allow list MAC address not matched (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(unmatchedMac), nil)
+			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should break the chain if allow list MAC address not matched, take precedence to allow listed mac", func() {
-			_, stop := handleDHCPv6(createMessage(unmatchedMac), nil)
+			_, stop := handler6(createMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should break the chain if allow list MAC address not matched, take precedence to allow listed mac (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(unmatchedMac), nil)
+			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should not break the chain if allow list MAC address matched", func() {
-			_, stop := handleDHCPv6(createMessage(allowListMac), nil)
+			_, stop := handler6(createMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 
 		It("should not break the chain if allow list MAC address matched (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(allowListMac), nil)
+			_, stop := handler6(createRelayMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 
 		It("should break the chain if deny list MAC address matched", func() {
-			_, stop := handleDHCPv6(createMessage(denyListMac), nil)
+			_, stop := handler6(createMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should break the chain if deny list MAC address matched (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(denyListMac), nil)
+			_, stop := handler6(createRelayMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
@@ -108,7 +108,7 @@ var _ = Describe("Macfilter Plugin", func() {
 			opt := msg.GetOneOption(dhcpv6.OptionClientID)
 			Expect(opt).NotTo(BeNil())
 
-			_, stop := handleDHCPv6(msg, nil)
+			_, stop := handler6(msg, nil)
 			Expect(stop).To(BeTrue())
 		})
 
@@ -126,7 +126,7 @@ var _ = Describe("Macfilter Plugin", func() {
 			msg.MessageType = dhcpv6.MessageTypeSolicit
 			clientIDOpt := dhcpv6.OptClientID(duidLL)
 			msg.AddOption(clientIDOpt)
-			_, stop := handleDHCPv6(msg, nil)
+			_, stop := handler6(msg, nil)
 			Expect(stop).To(BeFalse())
 		})
 
@@ -143,7 +143,7 @@ var _ = Describe("Macfilter Plugin", func() {
 			msg.MessageType = dhcpv6.MessageTypeSolicit
 			clientIDOpt := dhcpv6.OptClientID(duidEN)
 			msg.AddOption(clientIDOpt)
-			_, stop := handleDHCPv6(msg, nil)
+			_, stop := handler6(msg, nil)
 			Expect(stop).To(BeTrue())
 		})
 
@@ -152,7 +152,7 @@ var _ = Describe("Macfilter Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(msg).NotTo(BeNil())
 			msg.MessageType = dhcpv6.MessageTypeSolicit
-			_, stop := handleDHCPv6(msg, nil)
+			_, stop := handler6(msg, nil)
 			Expect(stop).To(BeTrue())
 		})
 	})
@@ -173,12 +173,12 @@ var _ = Describe("Macfilter Plugin", func() {
 		})
 
 		It("should break the chain if allow list MAC address not matched (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(unmatchedMac), nil)
+			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should not break the chain if allow list MAC address matched (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(allowListMac), nil)
+			_, stop := handler6(createRelayMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 	})
@@ -199,22 +199,22 @@ var _ = Describe("Macfilter Plugin", func() {
 		})
 
 		It("should break the chain if deny list MAC address matched", func() {
-			_, stop := handleDHCPv6(createMessage(denyListMac), nil)
+			_, stop := handler6(createMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should break the chain if deny list MAC address matched (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(denyListMac), nil)
+			_, stop := handler6(createRelayMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
 		It("should not break the chain if deny list MAC address not matched in case allow listed mac not defined", func() {
-			_, stop := handleDHCPv6(createMessage(unmatchedMac), nil)
+			_, stop := handler6(createMessage(unmatchedMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 
 		It("should not break the chain if deny list MAC address not matched in case allow listed mac not defined (Relay Message)", func() {
-			_, stop := handleDHCPv6(createRelayMessage(unmatchedMac), nil)
+			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 	})

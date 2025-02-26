@@ -62,10 +62,10 @@ func setup(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
-	return handleDHCPv6, nil
+	return handler6, nil
 }
 
-func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
+func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
 	var mac net.HardwareAddr
 
