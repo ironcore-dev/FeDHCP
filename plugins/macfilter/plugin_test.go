@@ -52,32 +52,32 @@ var _ = Describe("Macfilter Plugin", func() {
 			Expect(handler).NotTo(BeNil())
 		})
 
-		It("should break the chain if allow list MAC address not matched", func() {
+		It("should break the chain if MAC address not matched allow list", func() {
 			_, stop := handler6(createMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should break the chain if allow list MAC address not matched (Relay Message)", func() {
+		It("should break the chain if MAC address not matched allow list (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should not break the chain if allow list MAC address matched", func() {
+		It("should not break the chain if MAC address matched allow list", func() {
 			_, stop := handler6(createMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 
-		It("should not break the chain if allow list MAC address matched (Relay Message)", func() {
+		It("should not break the chain if MAC address matched allow list (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 
-		It("should break the chain if deny list MAC address matched", func() {
+		It("should break the chain if MAC address matched deny list", func() {
 			_, stop := handler6(createMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should break the chain if deny list MAC address matched (Relay Message)", func() {
+		It("should break the chain if MAC address matched deny list (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
@@ -162,12 +162,12 @@ var _ = Describe("Macfilter Plugin", func() {
 			Expect(handler).NotTo(BeNil())
 		})
 
-		It("should break the chain if allow list MAC address not matched (Relay Message)", func() {
+		It("should break the chain if MAC address not matched allow list (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should not break the chain if allow list MAC address matched (Relay Message)", func() {
+		It("should not break the chain if MAC address matched allow list (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
 		})
@@ -188,22 +188,22 @@ var _ = Describe("Macfilter Plugin", func() {
 			Expect(handler).NotTo(BeNil())
 		})
 
-		It("should break the chain if deny list MAC address matched", func() {
+		It("should break the chain if MAC address matched deny list with no allow list defined", func() {
 			_, stop := handler6(createMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should break the chain if deny list MAC address matched (Relay Message)", func() {
+		It("should break the chain if MAC address matched deny list with no allow list defined (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(denyListMac), nil)
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should not break the chain if deny list MAC address not matched in case allow listed mac not defined", func() {
+		It("should not break the chain if MAC address not matched deny list with no allow list defined", func() {
 			_, stop := handler6(createMessage(unmatchedMac), nil)
 			Expect(stop).To(BeFalse())
 		})
 
-		It("should not break the chain if deny list MAC address not matched in case allow listed mac not defined (Relay Message)", func() {
+		It("should not break the chain if MAC address not matched deny list with no allow list defined (Relay Message)", func() {
 			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
 			Expect(stop).To(BeFalse())
 		})
