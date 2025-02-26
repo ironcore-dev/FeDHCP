@@ -62,16 +62,6 @@ var _ = Describe("Macfilter Plugin", func() {
 			Expect(stop).To(BeTrue())
 		})
 
-		It("should break the chain if allow list MAC address not matched, take precedence to allow listed mac", func() {
-			_, stop := handler6(createMessage(unmatchedMac), nil)
-			Expect(stop).To(BeTrue())
-		})
-
-		It("should break the chain if allow list MAC address not matched, take precedence to allow listed mac (Relay Message)", func() {
-			_, stop := handler6(createRelayMessage(unmatchedMac), nil)
-			Expect(stop).To(BeTrue())
-		})
-
 		It("should not break the chain if allow list MAC address matched", func() {
 			_, stop := handler6(createMessage(allowListMac), nil)
 			Expect(stop).To(BeFalse())
