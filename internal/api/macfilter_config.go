@@ -4,6 +4,6 @@
 package api
 
 type MACFilterConfig struct {
-	WhiteList []string `yaml:"whiteList"`
-	BlackList []string `yaml:"blackList"`
+	AllowList []string `yaml:"allowList"`
+	DenyList  []string `yaml:"denyList"`
 }

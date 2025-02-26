@@ -106,7 +106,7 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}
 	}
 
-	if (len(macFilterConfig.WhiteList) != 0 && !hasMacPrefix(macFilterConfig.WhiteList, mac.String())) || hasMacPrefix(macFilterConfig.BlackList, mac.String()) {
+	if (len(macFilterConfig.AllowList) != 0 && !hasMacPrefix(macFilterConfig.AllowList, mac.String())) || hasMacPrefix(macFilterConfig.DenyList, mac.String()) {
 		return nil, true
 	}
 	return resp, false

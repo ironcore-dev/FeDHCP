@@ -20,11 +20,11 @@ const (
 	eventuallyTimeout    = 3 * time.Second
 	consistentlyDuration = 1 * time.Second
 	testConfigPath       = "test_config.yaml"
-	whiteListMac         = "AA:BB:CC:DD:EE:FF"
-	blackListMac         = "BB:BB:BB:BB:BB:CC"
-	whiteListMacPrefix   = "AA:BB:CC"
-	blackListMacPrefix   = "BB:BB:BB"
-	otherBlackListMac    = "BB:BB:BB:BB:BB:DD"
+	allowListMac         = "AA:BB:CC:DD:EE:FF"
+	denyListMac          = "BB:BB:BB:BB:BB:CC"
+	allowListMacPrefix   = "AA:BB:CC"
+	denyListMacPrefix    = "BB:BB:BB"
+	otherdenyListMac     = "BB:BB:BB:BB:BB:DD"
 	invalidMac           = "AABBCCDDEEFF"
 	validMac             = "AA-BB-CC"
 	unmatchedMac         = "00:11:22:33:44:55"
@@ -42,8 +42,8 @@ func TestMACFilter(t *testing.T) {
 var _ = BeforeSuite(func() {
 	fmt.Println("BeforeSuite: Runs once before all tests")
 	config := &api.MACFilterConfig{
-		WhiteList: []string{whiteListMacPrefix},
-		BlackList: []string{blackListMacPrefix},
+		AllowList: []string{allowListMacPrefix},
+		DenyList:  []string{denyListMacPrefix},
 	}
 	configData, err := yaml.Marshal(config)
 	Expect(err).NotTo(HaveOccurred())
