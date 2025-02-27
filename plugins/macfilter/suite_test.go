@@ -20,11 +20,11 @@ const (
 	eventuallyTimeout    = 3 * time.Second
 	consistentlyDuration = 1 * time.Second
 	testConfigPath       = "test_config.yaml"
-	allowListMac         = "AA:BB:CC:DD:EE:FF"
-	denyListMac          = "BB:BB:BB:BB:BB:CC"
-	allowListMacPrefix   = "AA:BB:CC"
+	allowListMac         = "AA:AA:AA:AA:AA:AA"
+	denyListMac          = "BB:BB:BB:BB:BB:BB"
+	allowListMacPrefix   = "AA:AA:AA"
 	denyListMacPrefix    = "BB:BB:BB"
-	unmatchedMac         = "00:11:22:33:44:55"
+	unmatchedMac         = "FF:FF:FF:FF:FF:FF"
 )
 
 func TestMACFilter(t *testing.T) {
