@@ -54,6 +54,13 @@ func loadConfig(args ...string) (*api.MACFilterConfig, error) {
 	if err = yaml.Unmarshal(configData, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
+
+	if len(config.AllowList) == 0 && len(config.DenyList) == 0 {
+		return nil, fmt.Errorf("both allow and deny lists are empty")
+	} else {
+		log.Debugf("Allow list: %v", config.AllowList)
+		log.Debugf("Deny list: %v", config.DenyList)
+	}
 	return config, nil
 }
 
@@ -106,10 +113,30 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}
 	}
 
-	if (len(macFilterConfig.AllowList) != 0 && !hasMacPrefix(macFilterConfig.AllowList, mac.String())) || hasMacPrefix(macFilterConfig.DenyList, mac.String()) {
+	if !matchesAllowList(mac) || matchesDenyList(mac) {
+		log.Infof("MAC address %s is not allowed", mac.String())
 		return nil, true
 	}
+
 	return resp, false
+}
+
+func matchesAllowList(mac net.HardwareAddr) bool {
+	// empty allow list means allow all
+	return !isAllowListDefined() || hasMacPrefix(macFilterConfig.AllowList, mac.String())
+}
+
+func matchesDenyList(mac net.HardwareAddr) bool {
+	// empty deny list means allow all
+	return isDenyListDefined() && hasMacPrefix(macFilterConfig.DenyList, mac.String())
+}
+
+func isAllowListDefined() bool {
+	return len(macFilterConfig.AllowList) > 0
+}
+
+func isDenyListDefined() bool {
+	return len(macFilterConfig.DenyList) > 0
 }
 
 func hasMacPrefix(macPrefix []string, mac string) bool {
