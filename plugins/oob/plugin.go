@@ -107,6 +107,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	ipaddr := make(net.IP, len(relayMsg.LinkAddr))
 	copy(ipaddr, relayMsg.LinkAddr)
 
+	fmt.Printf("k8sclient info: %s", k8sClient.OobLabel)
+
 	log.Infof("Requested IP address from relay %s for mac %s", ipaddr.String(), mac.String())
 	leaseIP, err := k8sClient.getIp(ipaddr, mac, false, ipamv1alpha1.CIPv6SubnetType)
 	if err != nil {
