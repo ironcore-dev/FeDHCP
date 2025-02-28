@@ -7,6 +7,8 @@ server6:
         - server_id: LL 00:de:ad:be:ef:00
         # always provide the same IP address, no matter who's asking:
         # - bluefield: bluefield_config.yaml
+        # break the plugin chain based on allow list or deny list mac address
+        - macfilter: macfilter_config.yaml
         # implement HTTPBoot
         - httpboot: httpboot_config.yaml
         # add leased IPs to ironcore's IPAM
