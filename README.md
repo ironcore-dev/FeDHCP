@@ -25,10 +25,25 @@ bulefieldIP: 2001:db8::1
 - IPv6 relays are supported
 
 ## Macfilter
-Takes decision to break the plugin chain if allowlist/denylist MAC address is requested.
+Implements client MAC filtering based on preconfigured allow/deny lists. Not configured (undefined) list is evaluated as "non-denying". If no list is configured, configuration error is thrown.
+
+Allow/deny action is evaluated according to the following rules:
+| Allow List MAC Status | Deny List MAC Status | Client Action |
+| ---------------------- | --------------------- | ------------- |
+| match | no match | allow |
+| match | match | deny |
+| match | not defined | allow |
+| no match | no match | deny |
+| no match | match | deny |
+| no match | not defined | deny |
+| not defined | no match | allow |
+| not defined | match | deny |
+| not defined | not defined | not allowed, configuration error on startup |
+
+When a MAC address is evaluated as "allowed", the plugin chain is processed as usual, when a MAC address is evaluated "denied", the plugin chain is aborted and the packet is dropped.
 
 ### Configuration
-The MAC address shall be passed as a string in `macfilter_config.yaml` goes as follows:
+The MAC filter shall be passed as a list of MACs in `macfilter_config.yaml` as follows:
 
 ```yaml
 allowList:
@@ -41,7 +56,8 @@ denyList:
 
 ### Notes
 - supports IPv6 addresses only
-- take precedence to allowlist over denylist MAC address 
+- IPv6 relays are supported
+- when filtering, both lists are taken into consideration, non-defined list is evaluated as "non-denying", s. table above
 
 ## HTTPBoot
 Implements HTTP boot from [Unifed Kernel Image](https://uapi-group.org/specifications/specs/unified_kernel_image/).
