@@ -7,28 +7,18 @@ import (
 	"net"
 	"os"
 
-	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/insomniacslk/dhcp/iana"
+
 	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v2"
+
+	"github.com/insomniacslk/dhcp/dhcpv6"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v2"
 )
 
 var _ = Describe("Macfilter Plugin", func() {
-	var (
-		err error
-	)
-
 	Describe("Configuration Loading", func() {
-		It("should successfully load a valid configuration file", func() {
-			config, err := loadConfig(testConfigPath)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(config).NotTo(BeNil())
-			Expect(config.AllowList[0]).To(Equal(allowListMacPrefix))
-			Expect(config.DenyList[0]).To(Equal(denyListMacPrefix))
-		})
-
 		It("should return an error if the configuration file is missing", func() {
 			_, err := loadConfig("nonexistent.yaml")
 			Expect(err).To(HaveOccurred())
@@ -36,22 +26,20 @@ var _ = Describe("Macfilter Plugin", func() {
 
 		It("should return an error if the configuration file is invalid", func() {
 			invalidConfigPath := "invalid_test_config.yaml"
-			err = os.WriteFile(invalidConfigPath, []byte("Invalid YAML"), 0644)
+
+			file, err := os.CreateTemp(GinkgoT().TempDir(), invalidConfigPath)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = loadConfig(invalidConfigPath)
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), []byte("Invalid YAML"), 0644)).To(Succeed())
+
+			_, err = loadConfig(file.Name())
 			Expect(err).To(HaveOccurred())
-			err = os.Remove(invalidConfigPath)
-			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
 	Describe("DHCPv6 Message Handling", func() {
-		BeforeEach(func() {
-			handler, err := setup(testConfigPath)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(handler).NotTo(BeNil())
-		})
-
 		It("should break the chain if MAC address empty", func() {
 			// Create a DUID-LL (Link-Layer Address)
 			duidLL := &dhcpv6.DUIDLL{
@@ -119,16 +107,21 @@ var _ = Describe("Macfilter Plugin", func() {
 
 	Describe("DHCPv6 Message Handling with only allow listed mac", func() {
 		BeforeEach(func() {
-			configPath := "tempConfig.yaml"
+			configPath := testConfigPath
 			config := &api.MACFilterConfig{
 				AllowList: []string{allowListMacPrefix},
 			}
 			configData, err := yaml.Marshal(config)
 			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(configPath, configData, 0644)
-			Expect(err).NotTo(HaveOccurred())
 
-			handler, err := setup(configPath)
+			file, err := os.CreateTemp(GinkgoT().TempDir(), configPath)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+			handler, err := setup6(file.Name())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(handler).NotTo(BeNil())
 		})
@@ -162,10 +155,15 @@ var _ = Describe("Macfilter Plugin", func() {
 			}
 			configData, err := yaml.Marshal(config)
 			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(configPath, configData, 0644)
-			Expect(err).NotTo(HaveOccurred())
 
-			handler, err := setup(configPath)
+			file, err := os.CreateTemp(GinkgoT().TempDir(), configPath)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+			handler, err := setup6(file.Name())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(handler).NotTo(BeNil())
 		})
@@ -200,10 +198,15 @@ var _ = Describe("Macfilter Plugin", func() {
 			}
 			configData, err := yaml.Marshal(config)
 			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(configPath, configData, 0644)
-			Expect(err).NotTo(HaveOccurred())
 
-			handler, err := setup(configPath)
+			file, err := os.CreateTemp(GinkgoT().TempDir(), configPath)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+			handler, err := setup6(file.Name())
 			Expect(err).NotTo(HaveOccurred())
 			Expect(handler).NotTo(BeNil())
 		})

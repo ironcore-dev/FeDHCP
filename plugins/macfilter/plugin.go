@@ -22,12 +22,11 @@ var log = logger.GetLogger("plugins/macfilter")
 
 var Plugin = plugins.Plugin{
 	Name:   "macfilter",
-	Setup6: setup,
+	Setup6: setup6,
 }
 
 var (
 	macFilterConfig *api.MACFilterConfig
-	err             error
 )
 
 // args[0] = path to config file
@@ -64,7 +63,8 @@ func loadConfig(args ...string) (*api.MACFilterConfig, error) {
 	return config, nil
 }
 
-func setup(args ...string) (handler.Handler6, error) {
+func setup6(args ...string) (handler.Handler6, error) {
+	var err error
 	macFilterConfig, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
@@ -75,6 +75,7 @@ func setup(args ...string) (handler.Handler6, error) {
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
 	var mac net.HardwareAddr
+	var err error
 
 	if !req.IsRelay() {
 		log.Info("Received non-relay DHCPv6 request.")

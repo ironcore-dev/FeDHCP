@@ -38,18 +38,24 @@ func TestMACFilter(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	fmt.Println("BeforeSuite: Runs once before all tests")
+	configFile := testConfigPath
 	config := &api.MACFilterConfig{
 		AllowList: []string{allowListMacPrefix},
 		DenyList:  []string{denyListMacPrefix},
 	}
 	configData, err := yaml.Marshal(config)
 	Expect(err).NotTo(HaveOccurred())
-	err = os.WriteFile(testConfigPath, configData, 0644)
-	Expect(err).NotTo(HaveOccurred())
-})
 
-var _ = AfterSuite(func() {
-	fmt.Println("AfterSuite: Runs once after all tests")
-	err = os.Remove(testConfigPath)
+	file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
 	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		_ = file.Close()
+	}()
+	Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+	_, err = setup6(file.Name())
+	Expect(err).NotTo(HaveOccurred())
+	Expect(macFilterConfig).NotTo(BeNil())
+	Expect(macFilterConfig.AllowList[0]).To(Equal(allowListMacPrefix))
+	Expect(macFilterConfig.DenyList[0]).To(Equal(denyListMacPrefix))
 })
