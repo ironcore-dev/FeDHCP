@@ -28,7 +28,7 @@ var _ = Describe("OOB Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(config).NotTo(BeNil())
 			Expect(config.Namespace).To(Equal(ns.Name))
-			Expect(config.SubnetLabel).To(Equal(subnetLabel))
+			Expect(config.SubnetLabel).To(Equal("subnet=foo"))
 		})
 
 		It("should return an error if the configuration file is missing", func() {
@@ -106,6 +106,48 @@ var _ = Describe("OOB Plugin", func() {
 		})
 	})
 
+	Describe("K8s Client tests", func() {
+		It("should successfully match the subnet", func() {
+			subnets := k8sClient.getOOBNetworks(ipamv1alpha1.CIPv6SubnetType)
+			Expect(subnets).NotTo(BeNil())
+			Expect(subnets).To(HaveLen(1))
+		})
+
+		It("should match the subnet", func() {
+			subnet, err := k8sClient.getMatchingSubnet("foo-v6", linkLocalIPV6Addr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(subnet).NotTo(BeNil())
+		})
+
+		It("should return (nil, nil) and not match the subnet if random subnet passed", func() {
+			subnet, err := k8sClient.getMatchingSubnet("randomfoo", linkLocalIPV6Addr)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(subnet).To(BeNil())
+		})
+
+		It("should not match the subnet", func() {
+			m, err := net.ParseMAC(unknownMachineMACAddress)
+			Expect(err).NotTo(HaveOccurred())
+			i := net.ParseIP("fe90::")
+			unknownIPV6Addr, err := eui64.ParseMAC(i, m)
+			Expect(err).NotTo(HaveOccurred())
+
+			subnet, err := k8sClient.getMatchingSubnet("foo", unknownIPV6Addr)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(subnet).To(BeNil())
+		})
+
+		It("return true checks the ip in CIDR", func() {
+			checkIP := checkIPInCIDR(linkLocalIPV6Addr, "fe80::/64")
+			Expect(checkIP).To(BeTrue())
+		})
+
+		It("return false, if invalid CIDR", func() {
+			checkIP := checkIPInCIDR(linkLocalIPV6Addr, "fe80::")
+			Expect(checkIP).To(BeFalse())
+		})
+	})
+
 	Describe("Plugin Setup4", func() {
 		It("should return an error for invalid subnetLabel in the config", func() {
 			invalidConfig := &api.OOBConfig{
@@ -151,57 +193,15 @@ var _ = Describe("OOB Plugin", func() {
 			Expect(resp).To(BeNil())
 		})
 
-		// It("should successfully handle request", func() {
-		// 	req, _ := dhcpv4.New()
-		// 	resp, _ := dhcpv4.NewReplyFromRequest(req)
+		It("should successfully handle request", func() {
+			req, _ := dhcpv4.New()
+			req.ClientHWAddr, _ = net.ParseMAC(machineWithIPAddressMACAddress)
+			req.ClientIPAddr = net.ParseIP(privateIPV4Address)
+			resp, _ := dhcpv4.NewReplyFromRequest(req)
 
-		// 	resp, stop := handler4(req, resp)
-		// 	Expect(stop).To(BeFalse())
-		// 	Expect(resp).NotTo(BeNil())
-		// })
+			_, stop := handler4(req, resp)
+			Expect(stop).To(BeFalse())
+			Expect(resp).NotTo(BeNil())
+		})
 	})
-
-	Describe("K8s Client tests", func() {
-		It("should successfully match the subnet", func() {
-			subnets := k8sClient.getOOBNetworks(ipamv1alpha1.CIPv6SubnetType)
-			Expect(subnets).NotTo(BeNil())
-			Expect(subnets).To(HaveLen(1))
-		})
-
-		It("should match the subnet", func() {
-			subnet, err := k8sClient.getMatchingSubnet("foo", linkLocalIPV6Addr)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(subnet).NotTo(BeNil())
-		})
-
-		It("should return (nil, nil) and not match the subnet if random subnet passed", func() {
-			subnet, err := k8sClient.getMatchingSubnet("randomfoo", linkLocalIPV6Addr)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(subnet).To(BeNil())
-		})
-
-		It("should not match the subnet", func() {
-			m, err := net.ParseMAC(unknownMachineMACAddress)
-			Expect(err).NotTo(HaveOccurred())
-			i := net.ParseIP("fe90::")
-			unknownIPV6Addr, err := eui64.ParseMAC(i, m)
-			Expect(err).NotTo(HaveOccurred())
-
-			subnet, err := k8sClient.getMatchingSubnet("foo", unknownIPV6Addr)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(subnet).To(BeNil())
-		})
-
-		It("return true checks the ip in CIDR", func() {
-			checkIP := checkIPInCIDR(linkLocalIPV6Addr, "fe80::/64")
-			Expect(checkIP).To(BeTrue())
-		})
-
-		It("return false, if invalid CIDR", func() {
-			checkIP := checkIPInCIDR(linkLocalIPV6Addr, "fe80::")
-			Expect(checkIP).To(BeFalse())
-		})
-
-	})
-
 })

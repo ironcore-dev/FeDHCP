@@ -5,6 +5,7 @@ package oob
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -89,7 +90,7 @@ func (k K8sClient) getIp(
 	if len(subnetNames) == 0 {
 		return nil, errors.New("No OOB subnets found")
 	} else {
-		log.Debugf("%d OOB subnets found: %s", len(subnetNames), strings.Join(subnetNames, " "))
+		log.Infof("%d OOB subnets found: %s", len(subnetNames), strings.Join(subnetNames, " "))
 		subnetMatch := false
 		for _, subnetName := range subnetNames {
 			subnet, err := k.getMatchingSubnet(subnetName, ipaddr)
@@ -99,7 +100,7 @@ func (k K8sClient) getIp(
 			if subnet == nil {
 				continue
 			}
-			log.Debugf("Selecting subnet %s/%s", k.Namespace, subnetName)
+			log.Infof("Selecting subnet %s/%s", k.Namespace, subnetName)
 			subnetMatch = true
 
 			ipamIP, err = k.prepareCreateIpamIP(subnetName, macKey)
@@ -363,7 +364,14 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 		return nil, nil
 	}
 	if !checkIPInCIDR(ipaddr, existingSubnet.Status.Reserved.String()) && ipaddr.String() != UNKNOWN_IP {
-		log.Infof("Cannot select subnet %s/%s, CIDR mismatch", k.Namespace, subnetName)
+		log.Infof("Cannot select subnet %s/%s, CIDR mismatch, subnet reserved: %s, ipaddr: %s", k.Namespace, subnetName, existingSubnet.Status.Reserved.String(), ipaddr.String())
+		log.Infof("IP Type: %T, Value: %v", ipaddr, ipaddr)
+		decodedIP, err := hex.DecodeString(ipaddr.String())
+		if err != nil {
+			log.Errorf("Failed to decode IP: %v", err)
+		} else {
+			log.Infof("Decoded IP Address: %s", string(decodedIP))
+		}
 		return nil, nil
 	}
 
@@ -416,7 +424,7 @@ func checkIPInCIDR(ip net.IP, cidrStr string) bool {
 	// Parse the CIDR string
 	_, cidrNet, err := net.ParseCIDR(cidrStr)
 	if err != nil {
-		log.Errorf("Error parsing CIDR: %v\n", err)
+		log.Infof("Error parsing CIDR: %v\n", err)
 		return false
 	}
 

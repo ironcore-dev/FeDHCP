@@ -175,7 +175,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 		// ack requested address
 		exactIP = true
 		ipaddr = clientIP
-		log.Infof("IP client: %v", ipaddr)
+		log.Infof("IP client test: %s", ipaddr)
 	} else if requestedIP != nil {
 		// ack requested address
 		exactIP = true
