@@ -320,7 +320,7 @@ func (k K8sClient) waitForCreation(ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, e
 			}
 		}
 	}
-	return nil, errors.New("Timeout reached, IP not created")
+	return ipamIP, errors.New("Timeout reached, IP not created")
 }
 
 func (k K8sClient) getOOBNetworks(subnetType ipamv1alpha1.SubnetAddressType) []string {
@@ -359,11 +359,11 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 		return nil, fmt.Errorf("failed to get subnet %s/%s: %w", k.Namespace, subnetName, err)
 	}
 	if apierrors.IsNotFound(err) {
-		log.Debugf("Cannot select subnet %s/%s, does not exist", k.Namespace, subnetName)
+		log.Infof("Cannot select subnet %s/%s, does not exist", k.Namespace, subnetName)
 		return nil, nil
 	}
 	if !checkIPInCIDR(ipaddr, existingSubnet.Status.Reserved.String()) && ipaddr.String() != UNKNOWN_IP {
-		log.Debugf("Cannot select subnet %s/%s, CIDR mismatch", k.Namespace, subnetName)
+		log.Infof("Cannot select subnet %s/%s, CIDR mismatch", k.Namespace, subnetName)
 		return nil, nil
 	}
 

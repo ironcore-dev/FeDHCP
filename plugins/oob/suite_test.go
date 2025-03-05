@@ -4,10 +4,14 @@
 package oob
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +19,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
+	"github.com/mdlayher/netx/eui64"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v2"
@@ -39,15 +44,18 @@ const (
 	oobConfigFile                  = "config.yaml"
 	unknownMachineMACAddress       = "11:11:11:11:11:11"
 	linkLocalIPV6Prefix            = "fe80::"
-	subnetLabel                    = "subnet=dhcp"
+	subnetLabel                    = "subnet=foo"
 	machineWithIPAddressMACAddress = "11:22:33:44:55:66"
 	privateIPV4Address             = "192.168.47.11"
 )
 
 var (
-	cfg           *rest.Config
-	k8sClientTest client.Client
-	testEnv       *envtest.Environment
+	cfg               *rest.Config
+	k8sClientTest     client.Client
+	testEnv           *envtest.Environment
+	ns                corev1.Namespace
+	testConfigPath    string
+	linkLocalIPV6Addr net.IP
 )
 
 func TestOOB(t *testing.T) {
@@ -104,41 +112,93 @@ var _ = BeforeSuite(func() {
 	kubernetes.SetConfig(cfg)
 
 	//fmt.Printf("config: %v", cfg)
+	SetupTest()
 })
 
-func SetupTest() *corev1.Namespace {
-	ns := &corev1.Namespace{}
+func SetupTest() {
+	ns = corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "test-",
+		},
+	}
+	Expect(k8sClientTest.Create(context.Background(), &ns)).To(Succeed(), "failed to create test namespace")
 
-	BeforeEach(func(ctx SpecContext) {
-		*ns = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: "test-",
+	configFile := oobConfigFile
+	data := &api.OOBConfig{
+		Namespace:   ns.Name,
+		SubnetLabel: subnetLabel,
+	}
+
+	configData, err := yaml.Marshal(data)
+	Expect(err).NotTo(HaveOccurred())
+
+	file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		_ = file.Close()
+	}()
+	testConfigPath = file.Name()
+	Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+	handler, err := setup6(file.Name())
+	Expect(err).NotTo(HaveOccurred())
+	Expect(handler).NotTo(BeNil())
+
+	k8sClient, err = NewK8sClient(ns.Name, "subnet=foo")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient).NotTo(BeNil())
+
+	subnet6 := &ipamv1alpha1.Subnet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns.Name,
+			Name:      "foo",
+			Labels: map[string]string{
+				"subnet": "foo",
 			},
-		}
-		Expect(k8sClientTest.Create(ctx, ns)).To(Succeed(), "failed to create test namespace")
-		DeferCleanup(k8sClientTest.Delete, ns)
+		},
+	}
 
-		configFile := oobConfigFile
-		data := &api.OOBConfig{
-			Namespace:   ns.Name,
-			SubnetLabel: subnetLabel,
-		}
+	cidr := &ipamv1alpha1.CIDR{
+		Net: netip.MustParsePrefix("fe80::/64"),
+	}
+	Expect(k8sClientTest.Create(context.Background(), subnet6)).To(Succeed())
+	DeferCleanup(k8sClientTest.Delete, subnet6)
 
-		configData, err := yaml.Marshal(data)
-		Expect(err).NotTo(HaveOccurred())
+	Eventually(UpdateStatus(subnet6, func() {
+		subnet6.Status.Type = ipamv1alpha1.CIPv6SubnetType
+		subnet6.Status.Reserved = cidr
+	})).Should(Succeed())
 
-		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
-		Expect(err).NotTo(HaveOccurred())
-		defer func() {
-			_ = file.Close()
-		}()
-		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+	By("creating an IPAM IP")
+	m, err := net.ParseMAC(machineWithIPAddressMACAddress)
+	Expect(err).NotTo(HaveOccurred())
+	i := net.ParseIP(linkLocalIPV6Prefix)
+	linkLocalIPV6Addr, err = eui64.ParseMAC(i, m)
+	Expect(err).NotTo(HaveOccurred())
 
-		config, err := loadConfig(file.Name())
-		Expect(err).NotTo(HaveOccurred())
-		Expect(config.Namespace).To(Equal(ns.Name))
-		Expect(config.SubnetLabel).To(Equal(subnetLabel))
-	})
+	sanitizedMAC := strings.Replace(machineWithIPAddressMACAddress, ":", "", -1)
+	ipv6Addr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
+	Expect(err).NotTo(HaveOccurred())
+	ipv6 := &ipamv1alpha1.IP{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns.Name,
+			Name:      "test-ip",
+			Labels: map[string]string{
+				"mac": sanitizedMAC,
+			},
+		},
+		Spec: ipamv1alpha1.IPSpec{
+			Subnet: corev1.LocalObjectReference{
+				Name: "foo",
+			},
+			IP: ipv6Addr,
+		},
+	}
 
-	return ns
+	Expect(k8sClientTest.Create(context.Background(), ipv6)).To(Succeed())
+	DeferCleanup(k8sClientTest.Delete, ipv6)
+
+	Eventually(UpdateStatus(ipv6, func() {
+		ipv6.Status.Reserved = ipv6.Spec.IP
+	})).Should(Succeed())
 }

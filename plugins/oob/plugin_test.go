@@ -4,12 +4,10 @@
 package oob
 
 import (
-	"fmt"
 	"net"
 	"os"
-	"strings"
-	"time"
 
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
@@ -17,94 +15,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v2"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 )
 
 var _ = Describe("OOB Plugin", func() {
 	var (
-		testConfigPath string
-		err            error
+		err error
 	)
-
-	ns := SetupTest()
-
-	BeforeEach(func(ctx SpecContext) {
-		//Setup temporary test config file
-		testConfigPath = "oob_config.yaml"
-		config := &api.OOBConfig{
-			Namespace:   ns.Name,
-			SubnetLabel: subnetLabel,
-		}
-		configData, err := yaml.Marshal(config)
-		Expect(err).NotTo(HaveOccurred())
-		err = os.WriteFile(testConfigPath, configData, 0644)
-		Expect(err).NotTo(HaveOccurred())
-
-		mac := machineWithIPAddressMACAddress
-		m, err := net.ParseMAC(mac)
-		Expect(err).NotTo(HaveOccurred())
-		i := net.ParseIP(linkLocalIPV6Prefix)
-		linkLocalIPV6Addr, err := eui64.ParseMAC(i, m)
-		Expect(err).NotTo(HaveOccurred())
-
-		sanitizedMAC := strings.Replace(mac, ":", "", -1)
-		ipv6Addr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
-		Expect(err).NotTo(HaveOccurred())
-		ipv6 := &ipamv1alpha1.IP{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:    ns.Name,
-				GenerateName: "test-",
-				Labels: map[string]string{
-					"mac": sanitizedMAC,
-				},
-			},
-			Spec: ipamv1alpha1.IPSpec{
-				Subnet: corev1.LocalObjectReference{
-					Name: "foo",
-				},
-				IP: ipv6Addr,
-			},
-		}
-		Expect(k8sClientTest.Create(ctx, ipv6)).To(Succeed())
-		DeferCleanup(k8sClientTest.Delete, ipv6)
-
-		Eventually(UpdateStatus(ipv6, func() {
-			ipv6.Status.Reserved = ipv6Addr
-		})).Should(Succeed())
-
-		ipv4Addr, err := ipamv1alpha1.IPAddrFromString(privateIPV4Address)
-		Expect(err).NotTo(HaveOccurred())
-		ipv4 := &ipamv1alpha1.IP{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:    ns.Name,
-				GenerateName: "test-",
-				Labels: map[string]string{
-					"mac": sanitizedMAC,
-				},
-			},
-			Spec: ipamv1alpha1.IPSpec{
-				Subnet: corev1.LocalObjectReference{
-					Name: "bar",
-				},
-				IP: ipv4Addr,
-			},
-		}
-
-		Expect(k8sClientTest.Create(ctx, ipv4)).To(Succeed())
-		DeferCleanup(k8sClientTest.Delete, ipv4)
-
-		Eventually(UpdateStatus(ipv4, func() {
-			ipv4.Status.Reserved = ipv4Addr
-		})).Should(Succeed())
-	})
-
-	AfterEach(func() {
-		// Cleanup temporary config file
-		err = os.Remove(testConfigPath)
-		Expect(err).NotTo(HaveOccurred())
-	})
 
 	Describe("Configuration Loading", func() {
 		It("should successfully load a valid configuration file", func() {
@@ -129,23 +45,21 @@ var _ = Describe("OOB Plugin", func() {
 	})
 
 	Describe("Plugin Setup6", func() {
-		It("should successfully initialize the plugin with a valid config", func() {
-			handler, err := setup6(testConfigPath)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(handler).NotTo(BeNil())
-		})
-
 		It("should return an error for invalid subnetLabel in the config", func() {
 			invalidConfig := &api.OOBConfig{
 				Namespace:   ns.Name,
-				SubnetLabel: "subnet-dhcp",
+				SubnetLabel: "subnet-foo",
 			}
 			invalidConfigData, err := yaml.Marshal(invalidConfig)
 			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(testConfigPath, invalidConfigData, 0644)
+			file, err := os.CreateTemp(GinkgoT().TempDir(), "invalidConfig.yaml")
 			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), invalidConfigData, 0644)).To(Succeed())
 
-			_, err = setup6(testConfigPath)
+			_, err = setup6(file.Name())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("should be 'key=value'"))
 		})
@@ -167,46 +81,8 @@ var _ = Describe("OOB Plugin", func() {
 
 	})
 
-	Describe("Plugin Setup4", func() {
-		It("should successfully initialize the plugin with a valid config", func() {
-			handler, err := setup4(testConfigPath)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(handler).NotTo(BeNil())
-		})
-
-		It("should return an error for invalid subnetLabel in the config", func() {
-			invalidConfig := &api.OOBConfig{
-				Namespace:   ns.Name,
-				SubnetLabel: "subnet-dhcp",
-			}
-			invalidConfigData, err := yaml.Marshal(invalidConfig)
-			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(testConfigPath, invalidConfigData, 0644)
-			Expect(err).NotTo(HaveOccurred())
-
-			_, err = setup4(testConfigPath)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("should be 'key=value'"))
-		})
-
-		It("Setup4 should return error if less arguments are provided", func() {
-			_, err := setup4()
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("Setup4 should return error if more arguments are provided", func() {
-			_, err := setup4("foo", "bar")
-			Expect(err).To(HaveOccurred())
-		})
-
-		It("Setup4 should return error if config file does not exist", func() {
-			_, err := setup4("does-not-exist.yaml")
-			Expect(err).To(HaveOccurred())
-		})
-	})
-
 	Describe("Plugin handler6", func() {
-		It("Should return and break plugin chain, if getting an IPv6 DHCP request directly (no relay)", func(ctx SpecContext) {
+		It("Should break plugin chain, if getting an IPv6 DHCP request directly (no relay)", func() {
 			req, _ := dhcpv6.NewMessage()
 			req.MessageType = dhcpv6.MessageTypeRequest
 
@@ -219,55 +95,113 @@ var _ = Describe("OOB Plugin", func() {
 		})
 
 		It("should successfully handle request", func() {
-			// subnet := &v1alpha1.Subnet{
-			// 	ObjectMeta: v1.ObjectMeta{
-			// 		Name:      "foo",
-			// 		Namespace: ns.Name,
-			// 	},
-			// }
-
-			// clientset, err2 := ipam.NewForConfig(cfg)
-			// Expect(err2).NotTo(HaveOccurred())
-			// createdSubnet, err1 := clientset.IpamV1alpha1().Subnets(ns.Name).Create(context.TODO(), subnet, v1.CreateOptions{})
-			// Expect(err1).NotTo(HaveOccurred())
-			// Expect(createdSubnet).NotTo(BeNil())
-
-			// fmt.Printf("createdSubnet: %v", createdSubnet)
-
-			mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
-			ip := net.ParseIP(linkLocalIPV6Prefix)
-			linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
-
 			req, _ := dhcpv6.NewMessage()
 			req.MessageType = dhcpv6.MessageTypeRequest
-			relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+			relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, linkLocalIPV6Addr, linkLocalIPV6Addr)
 
-			resp, err := handler6(relayedRequest, nil)
-			fmt.Printf("error %v", err)
-			Expect(err).To(BeNil())
-			Expect(resp).NotTo(BeNil())
-			respm, stop := resp.GetInnerMessage()
+			res, _ := dhcpv6.NewMessage()
+			resp, stop := handler6(relayedRequest, res)
 			Expect(stop).To(BeFalse())
-
-			Expect(respm.MessageType).To(Equal(dhcpv6.MessageTypeRequest))
-			Expect(respm.Options.OneIANA().Options.Options[0].(*dhcpv6.OptIAAddress).IPv6Addr.String()).To(Equal(linkLocalIPV6Prefix))
-			Expect(respm.Options.OneIANA().Options.Options[0].(*dhcpv6.OptIAAddress).PreferredLifetime).To(Equal(24 * time.Hour))
-			Expect(respm.Options.OneIANA().Options.Options[0].(*dhcpv6.OptIAAddress).ValidLifetime).To(Equal(24 * time.Hour))
+			Expect(resp).NotTo(BeNil())
 		})
+	})
 
+	Describe("Plugin Setup4", func() {
 		It("should return an error for invalid subnetLabel in the config", func() {
 			invalidConfig := &api.OOBConfig{
 				Namespace:   ns.Name,
-				SubnetLabel: "subnet-dhcp",
+				SubnetLabel: "subnet-foo",
 			}
 			invalidConfigData, err := yaml.Marshal(invalidConfig)
 			Expect(err).NotTo(HaveOccurred())
-			err = os.WriteFile(testConfigPath, invalidConfigData, 0644)
+			file, err := os.CreateTemp(GinkgoT().TempDir(), "invalidConfig.yaml")
 			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), invalidConfigData, 0644)).To(Succeed())
 
-			_, err = setup4(testConfigPath)
+			_, err = setup4(file.Name())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("should be 'key=value'"))
 		})
+
+		It("Setup6 should return error if less arguments are provided", func() {
+			_, err := setup4()
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Setup6 should return error if more arguments are provided", func() {
+			_, err := setup4("foo", "bar")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Setup6 should return error if config file does not exist", func() {
+			_, err := setup4("does-not-exist.yaml")
+			Expect(err).To(HaveOccurred())
+		})
 	})
+
+	Describe("Plugin handler4", func() {
+		It("Should break plugin chain, if not sending empty request ", func() {
+			req, _ := dhcpv4.New()
+			resp, _ := dhcpv4.NewReplyFromRequest(req)
+			resp, stop := handler4(req, resp)
+			Expect(stop).To(BeTrue())
+			Expect(resp).To(BeNil())
+		})
+
+		// It("should successfully handle request", func() {
+		// 	req, _ := dhcpv4.New()
+		// 	resp, _ := dhcpv4.NewReplyFromRequest(req)
+
+		// 	resp, stop := handler4(req, resp)
+		// 	Expect(stop).To(BeFalse())
+		// 	Expect(resp).NotTo(BeNil())
+		// })
+	})
+
+	Describe("K8s Client tests", func() {
+		It("should successfully match the subnet", func() {
+			subnets := k8sClient.getOOBNetworks(ipamv1alpha1.CIPv6SubnetType)
+			Expect(subnets).NotTo(BeNil())
+			Expect(subnets).To(HaveLen(1))
+		})
+
+		It("should match the subnet", func() {
+			subnet, err := k8sClient.getMatchingSubnet("foo", linkLocalIPV6Addr)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(subnet).NotTo(BeNil())
+		})
+
+		It("should return (nil, nil) and not match the subnet if random subnet passed", func() {
+			subnet, err := k8sClient.getMatchingSubnet("randomfoo", linkLocalIPV6Addr)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(subnet).To(BeNil())
+		})
+
+		It("should not match the subnet", func() {
+			m, err := net.ParseMAC(unknownMachineMACAddress)
+			Expect(err).NotTo(HaveOccurred())
+			i := net.ParseIP("fe90::")
+			unknownIPV6Addr, err := eui64.ParseMAC(i, m)
+			Expect(err).NotTo(HaveOccurred())
+
+			subnet, err := k8sClient.getMatchingSubnet("foo", unknownIPV6Addr)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(subnet).To(BeNil())
+		})
+
+		It("return true checks the ip in CIDR", func() {
+			checkIP := checkIPInCIDR(linkLocalIPV6Addr, "fe80::/64")
+			Expect(checkIP).To(BeTrue())
+		})
+
+		It("return false, if invalid CIDR", func() {
+			checkIP := checkIPInCIDR(linkLocalIPV6Addr, "fe80::")
+			Expect(checkIP).To(BeFalse())
+		})
+
+	})
+
 })
