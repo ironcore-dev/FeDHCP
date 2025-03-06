@@ -107,6 +107,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	ipaddr := make(net.IP, len(relayMsg.LinkAddr))
 	copy(ipaddr, relayMsg.LinkAddr)
 
+	fmt.Printf("k8sclient info: %s", k8sClient.OobLabel)
+
 	log.Infof("Requested IP address from relay %s for mac %s", ipaddr.String(), mac.String())
 	leaseIP, err := k8sClient.getIp(ipaddr, mac, false, ipamv1alpha1.CIPv6SubnetType)
 	if err != nil {
@@ -160,7 +162,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	mac := req.ClientHWAddr
 
-	log.Debugf("received DHCPv4 packet: %s", req.Summary())
+	log.Infof("received DHCPv4 packet: %s", req.Summary())
 	log.Tracef("Message type: %s", req.MessageType().String())
 
 	var ipaddr net.IP
@@ -173,23 +175,23 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 		// ack requested address
 		exactIP = true
 		ipaddr = clientIP
-		log.Debugf("IP client: %v", ipaddr)
+		log.Infof("IP client test: %s", ipaddr)
 	} else if requestedIP != nil {
 		// ack requested address
 		exactIP = true
 		ipaddr = requestedIP
-		log.Debugf("IP client: %v", ipaddr)
+		log.Infof("IP client: %v", ipaddr)
 	} else if serverIP != nil {
 		// no client information, use server address for subnet detection
 		exactIP = false
 		ipaddr = serverIP
-		log.Debugf("IP server: %v", ipaddr)
+		log.Infof("IP server: %v", ipaddr)
 	} else {
 		ipaddr = net.ParseIP(UNKNOWN_IP)
 		exactIP = false
 	}
 
-	log.Debugf("IP: %v", ipaddr)
+	log.Infof("IP: %v", ipaddr)
 	leaseIP, err := k8sClient.getIp(ipaddr, mac, exactIP, ipamv1alpha1.CIPv4SubnetType)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
@@ -198,7 +200,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	resp.YourIPAddr = leaseIP
 
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
+	log.Infof("Sent DHCPv4 response: %s", resp.Summary())
 
 	return resp, false
 }
