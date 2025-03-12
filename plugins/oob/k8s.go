@@ -148,37 +148,33 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv
 	if err != nil {
 		return nil, fmt.Errorf("error listing IPs with MAC %v: %w", macKey, err)
 	}
-	if len(ipList.Items) == 0 {
-		noop()
-	} else {
-		for _, existingIpamIP := range ipList.Items {
-			if existingIpamIP.Spec.Subnet.Name != subnetName {
-				// IP with that MAC is assigned to a different subnet (v4 vs v6?)
-				log.Debugf("IPAM IP with MAC %v and wrong subnet %s/%s found, ignoring", macKey,
-					existingIpamIP.Namespace, existingIpamIP.Spec.Subnet.Name)
-				continue
-			} else if existingIpamIP.Status.State == ipamv1alpha1.CFailedIPState {
-				log.Infof("Failed IP %s/%s in subnet %s found, deleting", existingIpamIP.Namespace,
-					existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
-				log.Debugf("Deleting old IP %s/%s:\n%v", existingIpamIP.Namespace, existingIpamIP.Name,
-					prettyFormat(existingIpamIP.Status))
-				err = k.Client.Delete(k.Ctx, &existingIpamIP)
-				if err != nil {
-					return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
-				}
-
-				err = k.waitForDeletion(&existingIpamIP)
-				if err != nil {
-					return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
-				}
-
-				k.EventRecorder.Eventf(&existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-				log.Debugf("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace,
-					existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
-			} else {
-				// IP already exists
-				return &existingIpamIP, nil
+	for _, existingIpamIP := range ipList.Items {
+		if existingIpamIP.Spec.Subnet.Name != subnetName {
+			// IP with that MAC is assigned to a different subnet (v4 vs v6?)
+			log.Debugf("IPAM IP with MAC %v and wrong subnet %s/%s found, ignoring", macKey,
+				existingIpamIP.Namespace, existingIpamIP.Spec.Subnet.Name)
+			continue
+		} else if existingIpamIP.Status.State == ipamv1alpha1.CFailedIPState {
+			log.Infof("Failed IP %s/%s in subnet %s found, deleting", existingIpamIP.Namespace,
+				existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+			log.Debugf("Deleting old IP %s/%s:\n%v", existingIpamIP.Namespace, existingIpamIP.Name,
+				prettyFormat(existingIpamIP.Status))
+			err = k.Client.Delete(k.Ctx, &existingIpamIP)
+			if err != nil {
+				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
 			}
+
+			err = k.waitForDeletion(&existingIpamIP)
+			if err != nil {
+				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
+			}
+
+			k.EventRecorder.Eventf(&existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
+			log.Debugf("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace,
+				existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+		} else {
+			// IP already exists
+			return &existingIpamIP, nil
 		}
 	}
 
@@ -193,70 +189,54 @@ func (k K8sClient) doCreateIpamIP(
 	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
 	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
 	var ipamIP *ipamv1alpha1.IP
-	if ipaddr.String() == UNKNOWN_IP || !exactIP {
-		ipamIP = &ipamv1alpha1.IP{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: macKey + "-" + origin + "-",
-				Namespace:    k.Namespace,
-				Labels: map[string]string{
-					"mac":       macKey,
-					"origin":    origin,
-					oobLabelKey: oobLabelValue,
-				},
+
+	ipamIP = &ipamv1alpha1.IP{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: macKey + "-" + origin + "-",
+			Namespace:    k.Namespace,
+			Labels: map[string]string{
+				"mac":       macKey,
+				"origin":    origin,
+				oobLabelKey: oobLabelValue,
 			},
-			Spec: ipamv1alpha1.IPSpec{
-				Subnet: corev1.LocalObjectReference{
-					Name: subnetName,
-				},
+		},
+		Spec: ipamv1alpha1.IPSpec{
+			Subnet: corev1.LocalObjectReference{
+				Name: subnetName,
 			},
-		}
-	} else {
-		ip, _ := ipamv1alpha1.IPAddrFromString(ipaddr.String())
-		ipamIP = &ipamv1alpha1.IP{
-			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: macKey + "-" + origin + "-",
-				Namespace:    k.Namespace,
-				Labels: map[string]string{
-					"mac":       macKey,
-					"origin":    origin,
-					oobLabelKey: oobLabelValue,
-				},
-			},
-			Spec: ipamv1alpha1.IPSpec{
-				IP: ip,
-				Subnet: corev1.LocalObjectReference{
-					Name: subnetName,
-				},
-			},
-		}
+		},
 	}
 
-	err := k.Client.Create(k.Ctx, ipamIP)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return nil, fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
-	} else if apierrors.IsAlreadyExists(err) {
-		// do not create IP, because the deletion is not yet ready
-		noop()
-	} else {
-		ipamIP, err = k.waitForCreation(ipamIP)
-		if err != nil {
+	if exactIP && ipaddr.String() != UNKNOWN_IP {
+		ip, _ := ipamv1alpha1.IPAddrFromString(ipaddr.String())
+		ipamIP.Spec.IP = ip
+	}
+
+	if err := k.Client.Create(k.Ctx, ipamIP); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
 			return nil, fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
 		} else {
-			log.Infof("New IP %s (%s/%s) created in subnet %s", ipamIP.Status.Reserved.String(),
-				ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
-			k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
-
-			// update IP attributes
-			createdIpamIP := ipamIP.DeepCopy()
-			err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
-			if err != nil && !apierrors.IsNotFound(err) {
-				return nil, fmt.Errorf("failed to get IP %s/%s: %w", createdIpamIP.Namespace, createdIpamIP.Name, err)
-			}
-			return createdIpamIP, nil
+			// do not create IP, because the deletion is not yet ready
+			return nil, nil
 		}
 	}
 
-	return nil, nil
+	ipamIP, err := k.waitForCreation(ipamIP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create IP %w", err)
+	} else {
+		log.Infof("New IP %s (%s/%s) created in subnet %s", ipamIP.Status.Reserved.String(),
+			ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
+		k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
+
+		// update IP attributes
+		createdIpamIP := ipamIP.DeepCopy()
+		err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("failed to get IP %s/%s: %w", createdIpamIP.Namespace, createdIpamIP.Name, err)
+		}
+		return createdIpamIP, nil
+	}
 }
 
 func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
@@ -421,5 +401,3 @@ func checkIPInCIDR(ip net.IP, cidrStr string) bool {
 	// Check if the CIDR contains the IP
 	return cidrNet.Contains(ip)
 }
-
-func noop() {}
