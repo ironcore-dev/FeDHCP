@@ -308,7 +308,7 @@ var _ = Describe("Endpoint", func() {
 		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
 
 		ip, err := GetIPAMIPAddressForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType)
-		Eventually(err).Should(BeNil())
+		Eventually(err).ShouldNot(HaveOccurred())
 		Eventually(ip).Should(BeNil())
 	})
 
