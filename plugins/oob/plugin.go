@@ -72,7 +72,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel.Subnet)
+	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabels)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
@@ -142,7 +142,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel.Subnet)
+	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabels)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
