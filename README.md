@@ -124,7 +124,13 @@ As for in-band, a kubernetes namespace shall be passed as a parameter. Further, 
 Providing those in `oob_config.yaml` goes as follows:
 ```yaml
 namespace: oob-ns
-subnetLabel: subnet=dhcp
+subnetLabels:
+  - key: subnet1
+    value: dhcp1
+  - key: subnet2
+    value: dhcp2
+  - key: subnet3
+    value: dhcp3
 ```
 ### Notes
 - supports both IPv4 and IPv6
