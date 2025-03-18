@@ -34,6 +34,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	"github.com/ironcore-dev/fedhcp/plugins/httpboot"
 	"github.com/ironcore-dev/fedhcp/plugins/ipam"
+	"github.com/ironcore-dev/fedhcp/plugins/macfilter"
 	"github.com/ironcore-dev/fedhcp/plugins/metal"
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
@@ -64,6 +65,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&pxeboot.Plugin,
 	&httpboot.Plugin,
 	&metal.Plugin,
+	&macfilter.Plugin,
 }
 
 var (
