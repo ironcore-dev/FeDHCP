@@ -65,7 +65,7 @@ func loadConfig(args ...string) (*api.HttpBootConfig, error) {
 func parseConfig(args ...string) (*url.URL, bool, error) {
 	httpbootConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, false, fmt.Errorf("erorr loading plugin configuration: %v", err)
+		return nil, false, err
 	}
 	arg := httpbootConfig.BootFile
 	parsedURL, err := url.Parse(arg)
@@ -81,7 +81,7 @@ func parseConfig(args ...string) (*url.URL, bool, error) {
 func setup6(args ...string) (handler.Handler6, error) {
 	u, ubs, err := parseConfig(args...)
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, err
 	}
 	bootFile6 = u.String()
 	useBootService = ubs
@@ -92,7 +92,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 func setup4(args ...string) (handler.Handler4, error) {
 	u, ubs, err := parseConfig(args...)
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, err
 	}
 	bootFile4 = u.String()
 	useBootService = ubs

@@ -79,7 +79,7 @@ func loadConfig(args ...string) (*api.PxebootConfig, error) {
 func parseConfig(args ...string) (*url.URL, *url.URL, error) {
 	pxebootConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, nil, err
 	}
 
 	tftp, err := url.Parse(pxebootConfig.TFTPServer)
@@ -106,7 +106,7 @@ func parseConfig(args ...string) (*url.URL, *url.URL, error) {
 func setup4(args ...string) (handler.Handler4, error) {
 	tftp, ipxe, err := parseConfig(args...)
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, err
 	}
 
 	opt1 := dhcpv4.OptBootFileName(tftp.Path[1:])
@@ -168,7 +168,7 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 func setup6(args ...string) (handler.Handler6, error) {
 	tftp, ipxe, err := parseConfig(args...)
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, err
 	}
 
 	tftpOption = dhcpv6.OptBootFileURL(tftp.String())
