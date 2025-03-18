@@ -75,7 +75,7 @@ func loadConfig(args ...string) (*api.OOBConfig, error) {
 func setup6(args ...string) (handler.Handler6, error) {
 	oobConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, err
 	}
 
 	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel)
@@ -145,7 +145,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 func setup4(args ...string) (handler.Handler4, error) {
 	oobConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, err
 	}
 
 	k8sClient, err = NewK8sClient(oobConfig.Namespace, oobConfig.SubnetLabel)
