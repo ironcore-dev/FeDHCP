@@ -10,6 +10,11 @@ on:
       - 'docs/**'
       - '**/*.md'
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -26,6 +31,7 @@ env:
 jobs:
   buildAndPush:
     runs-on: ubuntu-latest
+    if: ${{ github.event.label.name == 'ok-to-image' }} || ${{ github.event.label.name == 'ok-to-🐳' }} || ${{ github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
         with:
