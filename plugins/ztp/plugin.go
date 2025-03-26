@@ -98,19 +98,30 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return resp, false
 	}
 
-	//var opt dhcpv6.Option
+	if !req.IsRelay() {
+		log.Printf("Received non-relay DHCPv6 request. Dropping.")
+		return nil, true
+	}
 
-	// TODO: ZTP check?
+	m, err := req.GetInnerMessage()
+	if err != nil {
+		log.Errorf("could not decapsulate: %v", err)
+		return nil, true
+	}
+
+	if m.Options.GetOne(optionZTPCode) == nil {
+		log.Debug("No ZTP option requested")
+		return resp, false
+	}
+
 	buf := []byte(provisioningScript)
 	opt := &dhcpv6.OptionGeneric{
 		OptionCode: optionZTPCode,
 		OptionData: buf,
 	}
 
-	//if opt != nil {
 	resp.AddOption(opt)
 	log.Debugf("Added option %s", opt)
-	//}
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 	return resp, false
