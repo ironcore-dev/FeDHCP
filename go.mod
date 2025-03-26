@@ -24,6 +24,8 @@ require (
 
 replace github.com/coredhcp/coredhcp => github.com/damyan/coredhcp v0.0.0-20240911115402-66f9c25a305e
 
+replace github.com/insomniacslk/dhcp => github.com/damyan/dhcp v0.0.0-20250326181646-a882567e66e8
+
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.14.3 // indirect
