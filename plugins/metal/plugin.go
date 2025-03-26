@@ -338,7 +338,7 @@ func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alph
 		return nil, fmt.Errorf("failed to list IPs: %v", err)
 	}
 
-	sanitizedMAC := strings.Replace(strings.ToLower(mac.String()), ":", "", -1)
+	sanitizedMAC := strings.ReplaceAll(strings.ToLower(mac.String()), ":", "")
 	for _, ip := range ips.Items {
 		if ip.Labels["mac"] == sanitizedMAC && ipFamilyMatches(ip, subnetFamily) {
 			return &ip.Status.Reserved.Net, nil

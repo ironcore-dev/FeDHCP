@@ -250,7 +250,7 @@ func (k K8sClient) doCreateIpamIP(
 			createdIpamIP := ipamIP.DeepCopy()
 			err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
 			if err != nil && !apierrors.IsNotFound(err) {
-				return nil, fmt.Errorf("Failed to get IP %s/%s: %w", createdIpamIP.Namespace, createdIpamIP.Name, err)
+				return nil, fmt.Errorf("failed to get IP %s/%s: %w", createdIpamIP.Namespace, createdIpamIP.Name, err)
 			}
 			return createdIpamIP, nil
 		}
