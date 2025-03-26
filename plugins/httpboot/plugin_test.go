@@ -498,7 +498,7 @@ func TestCustomHTTPBootRequestedKnownIP(t *testing.T) {
 	time.Sleep(time.Second * 1)
 
 	ip := net.ParseIP(knownClientIP)
-	err, relayedRequest := createHTTPBootRequest(t, ip)
+	relayedRequest, err := createHTTPBootRequest(t, ip)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -509,7 +509,7 @@ func TestCustomHTTPBootRequestedKnownIP(t *testing.T) {
 
 func TestCustomHTTPBootRequestedKnownMAC(t *testing.T) {
 	ip := net.ParseIP(notKnownClientIP)
-	err, relayedRequest := createHTTPBootRequest(t, ip)
+	relayedRequest, err := createHTTPBootRequest(t, ip)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,7 +520,7 @@ func TestCustomHTTPBootRequestedKnownMAC(t *testing.T) {
 
 func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
 	ip := net.ParseIP(notKnownClientIP)
-	err, relayedRequest := createHTTPBootRequest(t, ip)
+	relayedRequest, err := createHTTPBootRequest(t, ip)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,7 +529,7 @@ func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
 	ensureBootURL(t, macAddress, relayedRequest, expectedDefaultCustomBootURL)
 }
 
-func createHTTPBootRequest(t *testing.T, clientIP net.IP) (error, *dhcpv6.RelayMessage) {
+func createHTTPBootRequest(t *testing.T, clientIP net.IP) (*dhcpv6.RelayMessage, error) {
 	tempDir := t.TempDir()
 	_ = Init6(*customConfig, tempDir)
 
@@ -552,7 +552,7 @@ func createHTTPBootRequest(t *testing.T, clientIP net.IP) (error, *dhcpv6.RelayM
 	if err != nil {
 		t.Fatal(err)
 	}
-	return err, relayedRequest
+	return relayedRequest, err
 }
 
 func ensureBootURL(t *testing.T, macAddress net.HardwareAddr, relayedRequest *dhcpv6.RelayMessage, expectedBootURL string) {

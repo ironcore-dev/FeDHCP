@@ -37,7 +37,7 @@ var _ = Describe("Endpoint", func() {
 		linkLocalIPV6Addr, err := eui64.ParseMAC(i, m)
 		Expect(err).NotTo(HaveOccurred())
 
-		sanitizedMAC := strings.Replace(mac, ":", "", -1)
+		sanitizedMAC := strings.ReplaceAll(mac, ":", "")
 		ipv6Addr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
 		Expect(err).NotTo(HaveOccurred())
 		ipv6 := &ipamv1alpha1.IP{
