@@ -183,16 +183,17 @@ ipxeServer: http://[2001:db8::1]/ipxe/boot6
 The ZTP plugin provides ZTP (zero touch provisioning) scripts to switches, based on a preconfigured list of MAC addresses. If a client did not request the ZTP script option 239 or the switch MAC is not known, the scripts does nothing.
 
 ### Configuration
-The ZTP configuration consists of a single map MAC address-to-provisioning script. Additionally, for convenience, an optional name can be added to a switch entry:
+The ZTP configuration consists of a list of switch entries, presented by MAC address, and their provisioning scripts. Additionally, for convenience, an optional name can be added to a switch entry:
 ```yaml
-- macAddress: 00:1A:2B:3C:4D:5E
-  provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-spine.sh
-  name: spine-1
-- macAddress: 01:1A:2B:3C:4D:5F
-  provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-leaf.sh
-  name: leaf-2
-- macAddress: 02:1A:2B:3C:4D:5F
-  provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-oob.sh
+switches:
+    - macAddress: 00:1A:2B:3C:4D:5E
+      provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-spine.sh
+      name: spine-1
+    - macAddress: 01:1A:2B:3C:4D:5F
+      provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-leaf.sh
+      name: leaf-2
+    - macAddress: 02:1A:2B:3C:4D:5F
+      provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-oob.sh
 ```
 
 ### Notes

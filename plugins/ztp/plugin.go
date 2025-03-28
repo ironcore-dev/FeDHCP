@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/mdlayher/netx/eui64"
+
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"gopkg.in/yaml.v2"
 
@@ -25,9 +27,10 @@ var Plugin = plugins.Plugin{
 	Setup6: setup6,
 }
 
-var (
-	provisioningScript string
-)
+// map MAC address to inventory name
+var inventory SwitchInventory
+
+type SwitchInventory []api.Switch
 
 const (
 	optionZTPCode = 239
@@ -61,30 +64,38 @@ func loadConfig(args ...string) (*api.ZTPConfig, error) {
 	return config, nil
 }
 
-func parseConfig(args ...string) (*url.URL, error) {
+func parseConfig(args ...string) error {
 	ztpConfig, err := loadConfig(args...)
 	if err != nil {
-		return nil, err
-	}
-	scriptURL, err := url.Parse(ztpConfig.ProvisioningScriptAddress)
-	if err != nil {
-		return nil, fmt.Errorf("invalid ztp script scriptURL: %v", err)
+		return err
 	}
 
-	if (scriptURL.Scheme != "http" && scriptURL.Scheme != "https") || scriptURL.Host == "" || scriptURL.Path == "" {
-		return nil, fmt.Errorf("malformed ZTP script parameter, should be a valid URL")
+	for _, switchEntry := range ztpConfig.Switches {
+		scriptURL, err := url.Parse(switchEntry.ProvisioningScriptAddress)
+		if err != nil {
+			return fmt.Errorf("invalid ztp script scriptURL: %v", err)
+		}
+
+		if (scriptURL.Scheme != "http" && scriptURL.Scheme != "https") || scriptURL.Host == "" || scriptURL.Path == "" {
+			return fmt.Errorf("malformed ZTP script parameter, should be a valid URL")
+		}
+
+		inventory = append(inventory, switchEntry)
 	}
 
-	return scriptURL, nil
+	return nil
 }
 
 func setup6(args ...string) (handler.Handler6, error) {
-	scriptURL, err := parseConfig(args...)
+	err := parseConfig(args...)
 	if err != nil {
 		return nil, err
 	}
 
-	provisioningScript = scriptURL.String()
+	if len(inventory) == 0 {
+		log.Errorf("no switches found in inventory")
+		return nil, nil
+	}
 
 	log.Printf("loaded ZTP plugin for DHCPv6.")
 	return handler6, nil
@@ -92,11 +103,6 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Debugf("Received DHCPv6 request: %s", req.Summary())
-
-	if provisioningScript == "" {
-		// nothing to do
-		return resp, false
-	}
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -109,19 +115,38 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if m.Options.GetOne(optionZTPCode) == nil {
+	if !m.IsOptionRequested(optionZTPCode) {
 		log.Debug("No ZTP option requested")
 		return resp, false
 	}
 
-	buf := []byte(provisioningScript)
-	opt := &dhcpv6.OptionGeneric{
-		OptionCode: optionZTPCode,
-		OptionData: buf,
+	relayMsg := req.(*dhcpv6.RelayMessage)
+	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	if err != nil {
+		log.Errorf("could not parse peer address %s: %s", relayMsg.PeerAddr.String(), err)
+		return nil, true
 	}
 
-	resp.AddOption(opt)
-	log.Debugf("Added option %s", opt)
+	switchMACFound := false
+	for _, switchEntry := range inventory {
+		if switchEntry.MacAddress == mac.String() {
+			log.Infof("MAC address %s found in inventory, switch: %s", mac.String(), switchEntry.Name)
+			switchMACFound = true
+
+			buf := []byte(switchEntry.ProvisioningScriptAddress)
+			opt := &dhcpv6.OptionGeneric{
+				OptionCode: optionZTPCode,
+				OptionData: buf,
+			}
+
+			resp.AddOption(opt)
+			log.Debugf("Added option %s", opt)
+		}
+	}
+
+	if !switchMACFound {
+		log.Infof("MAC address %s not found in inventory", mac.String())
+	}
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 	return resp, false
