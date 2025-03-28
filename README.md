@@ -177,7 +177,27 @@ ipxeServer: http://[2001:db8::1]/ipxe/boot6
 ### Notes
 - relays are supported for both IPv4 and IPv6
 - TFTP server as well as HTTP boot script server must be provided externally
-- as with `HTTPBoot`. only EFI X64_64 architecture is supported
+- as with `HTTPBoot`, only EFI X64_64 architecture is supported
+
+## ZTP
+The ZTP plugin provides ZTP (zero touch provisioning) scripts to switches, based on a preconfigured list of MAC addresses. If a client did not request the ZTP script option 239 or the switch MAC is not known, the scripts does nothing.
+
+### Configuration
+The ZTP configuration consists of a single map MAC address-to-provisioning script. Additionally, for convenience, an optional name can be added to a switch entry:
+```yaml
+- macAddress: 00:1A:2B:3C:4D:5E
+  provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-spine.sh
+  name: spine-1
+- macAddress: 01:1A:2B:3C:4D:5F
+  provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-leaf.sh
+  name: leaf-2
+- macAddress: 02:1A:2B:3C:4D:5F
+  provisioningScriptAddress: http://[2001:db8::1]/ztp/provision-oob.sh
+```
+
+### Notes
+- supports IPv6 only
+- IPv6 relays are mandatory
 
 # License
 `FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2024 by *coredhcp* and the *FeDHCP* authors.
