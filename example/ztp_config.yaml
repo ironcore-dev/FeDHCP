@@ -1,0 +1,9 @@
+switches:
+  - macAddress: aa:bb:cc:dd:ee:ff
+    provisioningScriptAddress: "http://[2001:db8::1]/ztp/provision-spine.sh"
+    name: spine-1
+  - macAddress: 00:11:22:33:44:55
+    provisioningScriptAddress: "http://[2001:db8::1]/ztp/provision-leaf.sh"
+    name: leaf-1
+  - macAddress: 00:11:22:33:44:66
+    provisioningScriptAddress: "http://[2001:db8::1]/ztp/provision-oob.sh"
