@@ -2,6 +2,8 @@ module github.com/ironcore-dev/fedhcp
 
 go 1.23.0
 
+toolchain go1.24.1
+
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20240908184240-576af8676ffa
 	github.com/google/addlicense v1.1.1
@@ -11,7 +13,7 @@ require (
 	github.com/ironcore-dev/metal-operator v0.0.0-20240910120000-bbd70c2a0eb0
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
 	github.com/onsi/ginkgo/v2 v2.23.3
-	github.com/onsi/gomega v1.36.3
+	github.com/onsi/gomega v1.37.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	gopkg.in/yaml.v2 v2.4.0
