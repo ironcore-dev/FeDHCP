@@ -31,7 +31,10 @@ env:
 jobs:
   buildAndPush:
     runs-on: ubuntu-latest
-    if: ${{ github.event.label.name == 'ok-to-image' }} || ${{ github.event.label.name == 'ok-to-🐳' }} || ${{ github.ref == 'refs/heads/main' }}
+    # Condition: Run on push to main OR PR with 'ok-to-image' label
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-to-image'))
     steps:
       - uses: actions/checkout@v4
         with:
