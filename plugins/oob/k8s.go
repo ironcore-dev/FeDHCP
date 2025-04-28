@@ -12,9 +12,11 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
@@ -36,12 +38,12 @@ type K8sClient struct {
 	Client        client.Client
 	Clientset     ipam.Clientset
 	Namespace     string
-	OobLabel      string
+	SubnetLabels  []api.SubnetLabel
 	Ctx           context.Context
 	EventRecorder record.EventRecorder
 }
 
-func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
+func NewK8sClient(namespace string, subnetLabels []api.SubnetLabel) (*K8sClient, error) {
 	cfg := kubernetes.GetConfig()
 	cl := kubernetes.GetClient()
 
@@ -69,7 +71,7 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 		Client:        cl,
 		Clientset:     *clientset,
 		Namespace:     namespace,
-		OobLabel:      oobLabel,
+		SubnetLabels:  subnetLabels,
 		Ctx:           context.Background(),
 		EventRecorder: recorder,
 	}
@@ -190,19 +192,23 @@ func (k K8sClient) doCreateIpamIP(
 	macKey string,
 	ipaddr net.IP,
 	exactIP bool) (*ipamv1alpha1.IP, error) {
-	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
-	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
+
+	subnetLabels := map[string]string{
+		"mac":    macKey,
+		"origin": origin,
+	}
+
+	for _, label := range k.SubnetLabels {
+		subnetLabels[label.Key] = label.Value
+	}
+
 	var ipamIP *ipamv1alpha1.IP
 	if ipaddr.String() == UNKNOWN_IP || !exactIP {
 		ipamIP = &ipamv1alpha1.IP{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: macKey + "-" + origin + "-",
 				Namespace:    k.Namespace,
-				Labels: map[string]string{
-					"mac":       macKey,
-					"origin":    origin,
-					oobLabelKey: oobLabelValue,
-				},
+				Labels:       subnetLabels,
 			},
 			Spec: ipamv1alpha1.IPSpec{
 				Subnet: corev1.LocalObjectReference{
@@ -216,11 +222,7 @@ func (k K8sClient) doCreateIpamIP(
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: macKey + "-" + origin + "-",
 				Namespace:    k.Namespace,
-				Labels: map[string]string{
-					"mac":       macKey,
-					"origin":    origin,
-					oobLabelKey: oobLabelValue,
-				},
+				Labels:       subnetLabels,
 			},
 			Spec: ipamv1alpha1.IPSpec{
 				IP: ip,
@@ -325,9 +327,15 @@ func (k K8sClient) waitForCreation(ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, e
 
 func (k K8sClient) getOOBNetworks(subnetType ipamv1alpha1.SubnetAddressType) []string {
 	timeout := int64(5)
+	// Convert slice to map
+	subnetLabels := make(map[string]string)
+	for _, label := range k.SubnetLabels {
+		subnetLabels[label.Key] = label.Value
+	}
+	labelSelctor := labels.SelectorFromSet(subnetLabels).String()
 
 	subnetList, err := k.Clientset.IpamV1alpha1().Subnets(k.Namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector:  k.OobLabel,
+		LabelSelector:  labelSelctor,
 		TimeoutSeconds: &timeout,
 	})
 	if err != nil {
@@ -369,32 +377,30 @@ func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1a
 }
 
 func (k K8sClient) applySubnetLabel(ipamIP *ipamv1alpha1.IP) {
-	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
-	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
-
 	log.Debugf("Current labels: %v", ipamIP.Labels)
-
-	_, exists := ipamIP.Labels[oobLabelKey]
-	if exists && ipamIP.Labels[oobLabelKey] == oobLabelValue {
-		log.Debug("Subnet label up-to-date")
-	} else {
-		if !exists {
-			ipamIP, err := k.Clientset.IpamV1alpha1().IPs(ipamIP.Namespace).Get(context.TODO(), ipamIP.Name, metav1.GetOptions{})
-			if err != nil {
-				log.Errorf("Error applying subnet label to IPAM IP %s: %v\n", ipamIP.Name, err)
-			} else {
-				if ipamIP.Labels == nil {
-					ipamIP.Labels = make(map[string]string)
+	for _, label := range k.SubnetLabels {
+		_, exists := ipamIP.Labels[label.Key]
+		if exists && ipamIP.Labels[label.Key] == label.Value {
+			log.Debug("Subnet label up-to-date")
+		} else {
+			if !exists {
+				ipamIP, err := k.Clientset.IpamV1alpha1().IPs(ipamIP.Namespace).Get(context.TODO(), ipamIP.Name, metav1.GetOptions{})
+				if err != nil {
+					log.Errorf("Error applying subnet label to IPAM IP %s: %v\n", ipamIP.Name, err)
+				} else {
+					if ipamIP.Labels == nil {
+						ipamIP.Labels = make(map[string]string)
+					}
 				}
 			}
-		}
 
-		ipamIP.Labels[oobLabelKey] = oobLabelValue
-		_, err := k.Clientset.IpamV1alpha1().IPs(ipamIP.Namespace).Update(context.TODO(), ipamIP, metav1.UpdateOptions{})
-		if err != nil {
-			log.Errorf("Error applying label to IPAM IP %s: %v\n", ipamIP.Name, err)
-		} else {
-			log.Debugf("Subnet label applied to IPAM IP %s\n", ipamIP.Name)
+			ipamIP.Labels[label.Key] = label.Value
+			_, err := k.Clientset.IpamV1alpha1().IPs(ipamIP.Namespace).Update(context.TODO(), ipamIP, metav1.UpdateOptions{})
+			if err != nil {
+				log.Errorf("Error applying label to IPAM IP %s: %v\n", ipamIP.Name, err)
+			} else {
+				log.Debugf("Subnet label applied to IPAM IP %s\n", ipamIP.Name)
+			}
 		}
 	}
 }
