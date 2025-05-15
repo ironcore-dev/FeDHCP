@@ -111,7 +111,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	log.Infof("Requested IP address from relay %s for mac %s", ipaddr.String(), mac.String())
-	leaseIP, err := k8sClient.getIp(ctx, ipaddr, mac, false, ipamv1alpha1.CIPv6SubnetType)
+	leaseIP, err := k8sClient.getIp(ctx, ipaddr, mac, false, ipamv1alpha1.IPv6SubnetType)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
 		return nil, true
@@ -195,7 +195,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	log.Debugf("IP: %v", ipaddr)
-	leaseIP, err := k8sClient.getIp(ctx, ipaddr, mac, exactIP, ipamv1alpha1.CIPv4SubnetType)
+	leaseIP, err := k8sClient.getIp(ctx, ipaddr, mac, exactIP, ipamv1alpha1.IPv4SubnetType)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
 		return nil, true
