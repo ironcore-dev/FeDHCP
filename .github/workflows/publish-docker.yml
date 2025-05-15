@@ -27,14 +27,12 @@ env:
   platforms: linux/amd64,linux/arm64
   registry: ghcr.io
   image: ghcr.io/${{ github.repository_owner }}/fedhcp
+  push: ${{ github.ref == 'refs/heads/main' ||
+       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-to-image')) }}
 
 jobs:
   buildAndPush:
     runs-on: ubuntu-latest
-    # Condition: Run on push to main OR PR with 'ok-to-image' label
-    if: |
-      github.event_name == 'push' ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-to-image'))
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,7 +66,7 @@ jobs:
           version: latest
           endpoint: builders
       - name: Login to GHCR
-        if: github.event_name != 'pull_request'
+        if: ${{ env.push }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.registry }}
@@ -80,6 +78,6 @@ jobs:
         with:
           context: .
           platforms: ${{ env.platforms }}
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ env.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
