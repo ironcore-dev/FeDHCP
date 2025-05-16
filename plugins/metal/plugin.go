@@ -157,7 +157,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.IPv6SubnetType); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 		return resp, false
 	}
@@ -171,7 +171,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	mac := req.ClientHWAddr
 
-	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.CIPv4SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.IPv4SubnetType); err != nil {
 		log.Errorf("Could not apply peer address: %s", err)
 		return resp, false
 	}

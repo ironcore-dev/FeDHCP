@@ -12,15 +12,15 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
-	ipam "github.com/ironcore-dev/ipam/clientgo/ipam"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
@@ -33,7 +33,6 @@ const (
 
 type K8sClient struct {
 	Client        client.Client
-	Clientset     ipam.Clientset
 	Namespace     string
 	SubnetNames   []string
 	Ctx           context.Context
@@ -43,11 +42,6 @@ type K8sClient struct {
 func NewK8sClient(namespace string, subnetNames []string) (*K8sClient, error) {
 	cfg := kubernetes.GetConfig()
 	cl := kubernetes.GetClient()
-
-	clientset, err := ipam.NewForConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create IPAM clientset: %w", err)
-	}
 
 	corev1Client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
@@ -66,7 +60,6 @@ func NewK8sClient(namespace string, subnetNames []string) (*K8sClient, error) {
 
 	k8sClient := K8sClient{
 		Client:        cl,
-		Clientset:     *clientset,
 		Namespace:     namespace,
 		SubnetNames:   subnetNames,
 		Ctx:           context.Background(),
@@ -189,8 +182,12 @@ func (k K8sClient) prepareCreateIpamIP(
 					existingIpamIP.Name, err)
 			}
 
-			err = k.waitForDeletion(existingIpamIP)
-			if err != nil {
+			if err := wait.PollUntilContextTimeout(k.Ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
+				if err := k.Client.Get(ctx, client.ObjectKeyFromObject(existingIpamIP), existingIpamIP); !apierrors.IsNotFound(err) {
+					return false, err
+				}
+				return true, nil
+			}); err != nil {
 				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace,
 					existingIpamIP.Name, err)
 			}
@@ -206,35 +203,6 @@ func (k K8sClient) prepareCreateIpamIP(
 	}
 
 	return ipamIP, nil
-}
-
-func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
-	// Define the namespace and resource name (if you want to watch a specific resource)
-	namespace := ipamIP.Namespace
-	resourceName := ipamIP.Name
-	fieldSelector := "metadata.name=" + resourceName + ",metadata.namespace=" + namespace
-	timeout := int64(5)
-
-	// watch for deletion finished event
-	watcher, err := k.Clientset.IpamV1alpha1().IPs(namespace).Watch(context.TODO(), metav1.ListOptions{
-		FieldSelector:  fieldSelector,
-		TimeoutSeconds: &timeout,
-	})
-	if err != nil {
-		log.Errorf("Error watching for IP: %v", err)
-	}
-
-	log.Debugf("Watching for changes to IP %s/%s...", namespace, resourceName)
-
-	for event := range watcher.ResultChan() {
-		log.Debugf("Type: %s, Object: %v\n", event.Type, event.Object)
-		foundIpamIP := event.Object.(*ipamv1alpha1.IP)
-		if event.Type == watch.Deleted && reflect.DeepEqual(ipamIP.Spec, foundIpamIP.Spec) {
-			log.Infof("IP %s/%s deleted", foundIpamIP.Namespace, foundIpamIP.Name)
-			return nil
-		}
-	}
-	return errors.New("timeout reached, IP not deleted")
 }
 
 func (k K8sClient) doCreateIpamIP(ipamIP *ipamv1alpha1.IP) error {
