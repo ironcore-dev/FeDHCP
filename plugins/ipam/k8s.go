@@ -125,7 +125,7 @@ func (k K8sClient) prepareCreateIpamIP(ctx context.Context, subnetName string, m
 			log.Debugf("IPAM IP with MAC %v and wrong subnet %s/%s found, ignoring", macKey,
 				existingIpamIP.Namespace, existingIpamIP.Spec.Subnet.Name)
 			continue
-		} else if existingIpamIP.Status.State == ipamv1alpha1.CFailedIPState {
+		} else if existingIpamIP.Status.State == ipamv1alpha1.FailedIPState {
 			log.Infof("Failed IP %s in subnet %s found, deleting", client.ObjectKeyFromObject(&existingIpamIP), existingIpamIP.Spec.Subnet.Name)
 			log.Debugf("Deleting old IP %s:\n%v", client.ObjectKeyFromObject(&existingIpamIP), prettyFormat(existingIpamIP.Status))
 			if err := k.Client.Delete(ctx, &existingIpamIP); err != nil {
