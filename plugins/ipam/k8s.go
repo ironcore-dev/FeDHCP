@@ -199,10 +199,15 @@ func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey
 
 func (k K8sClient) waitForDeletion(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
 	if err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err := k.Client.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); !apierrors.IsNotFound(err) {
-			return false, err
+		if err := k.Client.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return false, err
+			} else {
+				// IP is deleted
+				return true, nil
+			}
 		}
-		return true, nil
+		return false, nil
 	}); err != nil {
 		return fmt.Errorf("failed to delete IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 	}
@@ -212,10 +217,14 @@ func (k K8sClient) waitForDeletion(ctx context.Context, ipamIP *ipamv1alpha1.IP)
 
 func (k K8sClient) waitForCreation(ctx context.Context, ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, error) {
 	if err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err := k.Client.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); apierrors.IsNotFound(err) {
+		if err := k.Client.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); err != nil {
 			return false, err
 		}
-		return true, nil
+		if ipamIP.Status.State == ipamv1alpha1.FinishedIPState {
+			return true, nil
+		} else {
+			return false, nil
+		}
 	}); err != nil {
 		return nil, fmt.Errorf("failed to get IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 	}
