@@ -38,7 +38,9 @@ var (
 )
 
 const (
-	UNKNOWN_IP = "0.0.0.0"
+	UNKNOWN_IP        = "0.0.0.0"
+	preferredLifeTime = 24 * time.Hour
+	validLifeTime     = 24 * time.Hour
 )
 
 // args[0] = path to config file
@@ -129,16 +131,18 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return resp, false
 	}
 
-	resp.AddOption(&dhcpv6.OptIANA{
+	iana := &dhcpv6.OptIANA{
 		IaId: m.Options.OneIANA().IaId,
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
 				IPv6Addr:          leaseIP,
-				PreferredLifetime: 24 * time.Hour,
-				ValidLifetime:     24 * time.Hour,
+				PreferredLifetime: preferredLifeTime,
+				ValidLifetime:     validLifeTime,
 			},
 		}},
-	})
+	}
+	resp.AddOption(iana)
+	log.Infof("Added option IA prefix %s", iana.String())
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 
