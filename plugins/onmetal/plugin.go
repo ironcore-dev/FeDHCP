@@ -5,8 +5,10 @@ package onmetal
 
 import (
 	"fmt"
+	"github.com/mdlayher/netx/eui64"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -100,6 +102,14 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return resp, false
 	}
 
+	// Retrieve IPv6 prefix and MAC address from IPv6 address
+	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	if err != nil {
+		log.Errorf("Could not parse peer address: %s", err)
+		return nil, true
+	}
+	macKey := strings.ReplaceAll(mac.String(), ":", "")
+
 	iana := &dhcpv6.OptIANA{
 		IaId: m.Options.OneIANA().IaId,
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
@@ -111,7 +121,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}},
 	}
 	resp.AddOption(iana)
-	log.Infof("Added option IA prefix %s", iana.String())
+	log.Infof("Client %s, added option IA address %s", macKey, iana.String())
 
 	optIAPD := m.Options.OneIAPD()
 	T1 := preferredLifeTime
@@ -140,7 +150,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 			}}},
 		}
 		resp.UpdateOption(iapd)
-		log.Infof("Added option IA prefix %s", iapd.String())
+		log.Infof("Client %s, added option IA prefix %s", macKey, iapd.String())
 	}
 
 	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
