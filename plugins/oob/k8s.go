@@ -94,7 +94,7 @@ func (k K8sClient) getIp(
 	for _, subnetName := range subnetNames {
 		subnet, err := k.getMatchingSubnet(ctx, subnetName, ipaddr)
 		if err != nil {
-			log.Debugf("Error getting subnet %s/%s: %v", k.Namespace, subnetName, err)
+			log.Warningf("Error getting subnet %s/%s: %v", k.Namespace, subnetName, err)
 			continue
 		}
 		if subnet == nil {
@@ -113,7 +113,7 @@ func (k K8sClient) getIp(
 				return nil, err
 			}
 		} else {
-			log.Infof("Reserved IP %s (%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
+			log.Debugf("Reserved IP %s (%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
 				client.ObjectKeyFromObject(ipamIP), ipamIP.Spec.Subnet.Name)
 			if err := k.applySubnetLabel(ctx, ipamIP); err != nil {
 				return nil, err
@@ -159,7 +159,7 @@ func (k K8sClient) prepareCreateIpamIP(ctx context.Context, subnetName string, m
 			}
 
 			k.EventRecorder.Eventf(&existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-			log.Debugf("Old IP %s deleted from subnet %s", client.ObjectKeyFromObject(&existingIpamIP), existingIpamIP.Spec.Subnet.Name)
+			log.Infof("Old IP %s deleted from subnet %s", client.ObjectKeyFromObject(&existingIpamIP), existingIpamIP.Spec.Subnet.Name)
 		} else {
 			// IP already exists
 			return &existingIpamIP, nil
@@ -193,6 +193,7 @@ func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey
 		ipamIP.Spec.IP = ip
 	}
 
+	log.Infof("Creating new IP for MAC address %s", macKey)
 	if err := k.Client.Create(ctx, ipamIP); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
 			return nil, fmt.Errorf("failed to create IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
@@ -232,7 +233,7 @@ func (k K8sClient) waitForDeletion(ctx context.Context, ipamIP *ipamv1alpha1.IP)
 		}
 		return false, nil
 	}); err != nil {
-		return fmt.Errorf("failed to delete IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
+		return fmt.Errorf("timeout deleting IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 	}
 
 	return nil
@@ -249,7 +250,7 @@ func (k K8sClient) waitForCreation(ctx context.Context, ipamIP *ipamv1alpha1.IP)
 			return false, nil
 		}
 	}); err != nil {
-		return nil, fmt.Errorf("failed to get IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
+		return nil, fmt.Errorf("timeout getting IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 	}
 
 	return ipamIP, nil
