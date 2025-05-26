@@ -97,6 +97,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	log.Debugf("Generated IP address %s for mac %s", ipaddr.String(), mac.String())
 	err = k8sClient.createIpamIP(ctx, ipaddr, mac)
 	if err != nil {

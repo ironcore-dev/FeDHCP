@@ -5,16 +5,14 @@ package ipam
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"strings"
-	"time"
+
+	"github.com/ironcore-dev/fedhcp/internal/helper"
 
 	"k8s.io/apimachinery/pkg/types"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
@@ -127,12 +125,12 @@ func (k K8sClient) prepareCreateIpamIP(ctx context.Context, subnetName string, m
 			continue
 		} else if existingIpamIP.Status.State == ipamv1alpha1.FailedIPState {
 			log.Infof("Failed IP %s in subnet %s found, deleting", client.ObjectKeyFromObject(&existingIpamIP), existingIpamIP.Spec.Subnet.Name)
-			log.Debugf("Deleting old IP %s:\n%v", client.ObjectKeyFromObject(&existingIpamIP), prettyFormat(existingIpamIP.Status))
+			log.Debugf("Deleting old IP %s:\n%v", client.ObjectKeyFromObject(&existingIpamIP), helper.PrettyFormat(existingIpamIP.Status, log))
 			if err := k.Client.Delete(ctx, &existingIpamIP); err != nil {
 				return nil, fmt.Errorf("failed to delete IP %s: %w", client.ObjectKeyFromObject(&existingIpamIP), err)
 			}
 
-			if err := k.waitForDeletion(ctx, &existingIpamIP); err != nil {
+			if err := helper.WaitForIPDeletion(ctx, &existingIpamIP); err != nil {
 				return nil, fmt.Errorf("failed to delete IP %s: %w", client.ObjectKeyFromObject(&existingIpamIP), err)
 			}
 
@@ -180,7 +178,7 @@ func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey
 		}
 	}
 
-	ipamIP, err = k.waitForCreation(ctx, ipamIP)
+	ipamIP, err = helper.WaitForIPCreation(ctx, ipamIP)
 	if err != nil {
 		return fmt.Errorf("failed to create IP %w", err)
 	} else {
@@ -198,41 +196,6 @@ func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey
 	}
 }
 
-func (k K8sClient) waitForDeletion(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
-	if err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err := k.Client.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return false, err
-			} else {
-				// IP is deleted
-				return true, nil
-			}
-		}
-		return false, nil
-	}); err != nil {
-		return fmt.Errorf("timeout deleting IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
-	}
-
-	return nil
-}
-
-func (k K8sClient) waitForCreation(ctx context.Context, ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, error) {
-	if err := wait.PollUntilContextTimeout(ctx, 1*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err := k.Client.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); err != nil {
-			return false, err
-		}
-		if ipamIP.Status.State == ipamv1alpha1.FinishedIPState {
-			return true, nil
-		} else {
-			return false, nil
-		}
-	}); err != nil {
-		return nil, fmt.Errorf("timeout getting IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
-	}
-
-	return ipamIP, nil
-}
-
 func (k K8sClient) getMatchingSubnet(ctx context.Context, subnetName string, ipaddr net.IP) (*ipamv1alpha1.Subnet, error) {
 	subnet := &ipamv1alpha1.Subnet{}
 	if err := k.Client.Get(ctx, types.NamespacedName{Name: subnetName, Namespace: k.Namespace}, subnet); err != nil {
@@ -243,33 +206,10 @@ func (k K8sClient) getMatchingSubnet(ctx context.Context, subnetName string, ipa
 		}
 	}
 
-	if !checkIPv6InCIDR(ipaddr, subnet.Status.Reserved.String()) {
+	if !helper.CheckIPInCIDR(ipaddr, subnet.Status.Reserved.String(), log) {
 		log.Debugf("Cannot select subnet %s, CIDR mismatch", client.ObjectKeyFromObject(subnet))
 		return nil, nil
 	}
 
 	return subnet, nil
-}
-
-func prettyFormat(ipSpec interface{}) string {
-	// Marshal the struct into a JSON string with pretty printing
-	jsonBytes, err := json.MarshalIndent(ipSpec, "", "  ")
-	if err != nil {
-		log.Errorf("Error marshalling JSON: %v", err)
-	}
-
-	// Convert the JSON bytes to a string and print
-	return string(jsonBytes)
-}
-
-func checkIPv6InCIDR(ip net.IP, cidrStr string) bool {
-	// Parse the CIDR string
-	_, cidrNet, err := net.ParseCIDR(cidrStr)
-	if err != nil {
-		log.Errorf("Error parsing CIDR: %v\n", err)
-		return false
-	}
-
-	// Check if the CIDR contains the IP
-	return cidrNet.Contains(ip)
 }
