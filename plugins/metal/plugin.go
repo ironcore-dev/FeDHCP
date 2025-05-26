@@ -157,7 +157,10 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.CIPv6SubnetType); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 		return resp, false
 	}
@@ -171,7 +174,10 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	mac := req.ClientHWAddr
 
-	if err := ApplyEndpointForMACAddress(mac, ipamv1alpha1.CIPv4SubnetType); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.CIPv4SubnetType); err != nil {
 		log.Errorf("Could not apply peer address: %s", err)
 		return resp, false
 	}
@@ -180,7 +186,7 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	return resp, false
 }
 
-func ApplyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
+func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
 	inventoryName := GetInventoryEntryMatchingMACAddress(mac)
 	if inventoryName == "" {
 		log.Print("Unknown inventory, not processing")
@@ -193,7 +199,7 @@ func ApplyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.
 	}
 
 	if ip != nil {
-		if err := ApplyEndpointForInventory(inventoryName, mac, ip); err != nil {
+		if err := ApplyEndpointForInventory(ctx, inventoryName, mac, ip); err != nil {
 			if errors.IsAlreadyExists(err) {
 				log.Debugf("Endpoint %s (%s) exists, nothing to do", mac.String(), ip.String())
 			} else {
@@ -209,14 +215,11 @@ func ApplyEndpointForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.
 	return nil
 }
 
-func ApplyEndpointForInventory(name string, mac net.HardwareAddr, ip *netip.Addr) error {
+func ApplyEndpointForInventory(ctx context.Context, name string, mac net.HardwareAddr, ip *netip.Addr) error {
 	if ip == nil {
 		log.Info("No IP address specified. Skipping.")
 		return nil
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	cl := kubernetes.GetClient()
 	if cl == nil {
