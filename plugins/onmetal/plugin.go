@@ -5,11 +5,12 @@ package onmetal
 
 import (
 	"fmt"
-	"github.com/mdlayher/netx/eui64"
 	"net"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/mdlayher/netx/eui64"
 
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"gopkg.in/yaml.v3"
