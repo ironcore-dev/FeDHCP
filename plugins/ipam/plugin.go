@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
 package ipam
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -94,8 +95,11 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	copy(ipaddr, relayMsg.LinkAddr)
 	ipaddr[len(ipaddr)-1] += 1
 
-	log.Infof("Generated IP address %s for mac %s", ipaddr.String(), mac.String())
-	err = k8sClient.createIpamIP(ipaddr, mac)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log.Debugf("Generated IP address %s for mac %s", ipaddr.String(), mac.String())
+	err = k8sClient.createIpamIP(ctx, ipaddr, mac)
 	if err != nil {
 		log.Errorf("Could not create IPAM IP: %s", err)
 		return nil, true

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
 package httpboot
@@ -34,7 +34,10 @@ var Plugin = plugins.Plugin{
 	Setup4: setup4,
 }
 
-const httpClient = "HTTPClient"
+const (
+	httpClient = "HTTPClient"
+	pxeClient  = "PXEClient"
+)
 
 func parseArgs(args ...string) (string, error) {
 	if len(args) != 1 {
@@ -141,8 +144,11 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 			}
 			resp.AddOption(vc)
 			log.Infof("Added option VendorClass %s", vc.String())
+		} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
+			log.Infof("PXEClient VendorClass %s", optVendorClass.String())
+			return resp, false
 		} else {
-			log.Errorf("non HTTPClient VendorClass %s", optVendorClass.String())
+			log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
 			return resp, false
 		}
 	}

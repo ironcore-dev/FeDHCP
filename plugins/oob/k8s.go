@@ -1,26 +1,24 @@
-// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
 package oob
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
-	"reflect"
 	"strings"
+
+	"github.com/ironcore-dev/fedhcp/internal/helper"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/watch"
-
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
-	ipam "github.com/ironcore-dev/ipam/clientgo/ipam"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -34,25 +32,23 @@ const (
 
 type K8sClient struct {
 	Client        client.Client
-	Clientset     ipam.Clientset
 	Namespace     string
-	OobLabel      string
-	Ctx           context.Context
+	oobLabelValue string
+	oobLabelKey   string
 	EventRecorder record.EventRecorder
 }
 
 func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
+	if !strings.Contains(oobLabel, "=") {
+		return nil, fmt.Errorf("invalid subnet label: %s, should be 'key=value'", oobLabel)
+	}
+
 	cfg := kubernetes.GetConfig()
 	cl := kubernetes.GetClient()
 
-	clientset, err := ipam.NewForConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create IPAM clientset %w", err)
-	}
-
 	corev1Client, err := corev1client.NewForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create core client %w", err)
+		return nil, fmt.Errorf("failed to create core client: %w", err)
 	}
 
 	broadcaster := record.NewBroadcaster()
@@ -60,17 +56,17 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 	// Leader id, needs to be unique
 	id, err := os.Hostname()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname %w", err)
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: id})
 	broadcaster.StartRecordingToSink(&corev1client.EventSinkImpl{Interface: corev1Client.Events("")})
 
+	labelKev, labelValue := strings.Split(oobLabel, "=")[0], strings.Split(oobLabel, "=")[1]
 	k8sClient := K8sClient{
 		Client:        cl,
-		Clientset:     *clientset,
 		Namespace:     namespace,
-		OobLabel:      oobLabel,
-		Ctx:           context.Background(),
+		oobLabelKey:   labelKev,
+		oobLabelValue: labelValue,
 		EventRecorder: recorder,
 	}
 
@@ -78,6 +74,7 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 }
 
 func (k K8sClient) getIp(
+	ctx context.Context,
 	ipaddr net.IP,
 	mac net.HardwareAddr,
 	exactIP bool,
@@ -85,93 +82,83 @@ func (k K8sClient) getIp(
 	var ipamIP *ipamv1alpha1.IP
 	macKey := strings.ReplaceAll(mac.String(), ":", "")
 
-	subnetNames := k.getOOBNetworks(subnetType)
-	if len(subnetNames) == 0 {
-		return nil, errors.New("No OOB subnets found")
-	} else {
-		log.Debugf("%d OOB subnets found: %s", len(subnetNames), strings.Join(subnetNames, " "))
-		subnetMatch := false
-		for _, subnetName := range subnetNames {
-			subnet, err := k.getMatchingSubnet(subnetName, ipaddr)
-			if err != nil {
-				return nil, err
-			}
-			if subnet == nil {
-				continue
-			}
-			log.Debugf("Selecting subnet %s/%s", k.Namespace, subnetName)
-			subnetMatch = true
+	subnetNames, err := k.getOOBNetworks(ctx, subnetType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OOB networks: %w", err)
+	}
+	log.Debugf("%d OOB subnets found: %s", len(subnetNames), strings.Join(subnetNames, " "))
 
-			ipamIP, err = k.prepareCreateIpamIP(subnetName, macKey)
+	// select the subnet matching the CIDR of the request
+	subnetMatch := false
+	for _, subnetName := range subnetNames {
+		subnet, err := k.getMatchingSubnet(ctx, subnetName, ipaddr)
+		if err != nil {
+			log.Warningf("Error getting subnet %s/%s: %v", k.Namespace, subnetName, err)
+			continue
+		}
+		if subnet == nil {
+			continue
+		}
+		log.Debugf("Selecting subnet %s/%s", k.Namespace, subnetName)
+		subnetMatch = true
+
+		ipamIP, err = k.prepareCreateIpamIP(ctx, subnetName, macKey)
+		if err != nil {
+			return nil, err
+		}
+		if ipamIP == nil {
+			ipamIP, err = k.doCreateIpamIP(ctx, subnetName, macKey, ipaddr, exactIP)
 			if err != nil {
 				return nil, err
 			}
-			if ipamIP == nil {
-				ipamIP, err = k.doCreateIpamIP(subnetName, macKey, ipaddr, exactIP)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				log.Infof("Reserved IP %s (%s/%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
-					ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
-				k.applySubnetLabel(ipamIP)
+		} else {
+			log.Debugf("Reserved IP %s (%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
+				client.ObjectKeyFromObject(ipamIP), ipamIP.Spec.Subnet.Name)
+			if err := k.applySubnetLabel(ctx, ipamIP); err != nil {
+				return nil, err
 			}
-			// break at first subnet match, there can be only one
-			break
 		}
-		if !subnetMatch {
-			return nil, errors.New(fmt.Sprintf("No matching subnet found for IP %s/%s", k.Namespace, ipaddr))
-		}
+		// break at first subnet match, there can be only one
+		break
+	}
+	if !subnetMatch {
+		return nil, fmt.Errorf("no matching subnet found for IP %s/%s", k.Namespace, ipaddr)
 	}
 
 	if ipamIP.Status.Reserved != nil {
 		return net.ParseIP(ipamIP.Status.Reserved.String()), nil
 	} else {
-		return nil, errors.New("No reserved IP address found")
+		return nil, fmt.Errorf("no reserved IP address found")
 	}
 }
 
-func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv1alpha1.IP, error) {
-	namespace := k.Namespace
-	fieldSelector := "metadata.namespace=" + namespace
-	// https://github.com/ironcore-dev/ipam/issues/307
-	// fieldSelector += ",spec.subnet.name=" + subnetName
-	labelSelector := "mac=" + macKey
-	//labelSelector += ",origin=" + origin
-	timeout := int64(5)
-
-	ipList, err := k.Clientset.IpamV1alpha1().IPs(namespace).List(context.TODO(), metav1.ListOptions{
-		FieldSelector:  fieldSelector,
-		LabelSelector:  labelSelector,
-		TimeoutSeconds: &timeout,
-	})
-	if err != nil {
+func (k K8sClient) prepareCreateIpamIP(ctx context.Context, subnetName string, macKey string) (*ipamv1alpha1.IP, error) {
+	ipList := &ipamv1alpha1.IPList{}
+	if err := k.Client.List(ctx, ipList, client.InNamespace(k.Namespace), client.MatchingLabels{
+		"mac": macKey,
+	}); err != nil {
 		return nil, fmt.Errorf("error listing IPs with MAC %v: %w", macKey, err)
 	}
+
 	for _, existingIpamIP := range ipList.Items {
 		if existingIpamIP.Spec.Subnet.Name != subnetName {
 			// IP with that MAC is assigned to a different subnet (v4 vs v6?)
 			log.Debugf("IPAM IP with MAC %v and wrong subnet %s/%s found, ignoring", macKey,
 				existingIpamIP.Namespace, existingIpamIP.Spec.Subnet.Name)
 			continue
-		} else if existingIpamIP.Status.State == ipamv1alpha1.CFailedIPState {
-			log.Infof("Failed IP %s/%s in subnet %s found, deleting", existingIpamIP.Namespace,
-				existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
-			log.Debugf("Deleting old IP %s/%s:\n%v", existingIpamIP.Namespace, existingIpamIP.Name,
-				prettyFormat(existingIpamIP.Status))
-			err = k.Client.Delete(k.Ctx, &existingIpamIP)
-			if err != nil {
-				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
+		} else if existingIpamIP.Status.State == ipamv1alpha1.FailedIPState {
+			log.Infof("Failed IP %s in subnet %s found, deleting", client.ObjectKeyFromObject(&existingIpamIP), existingIpamIP.Spec.Subnet.Name)
+			log.Debugf("Deleting old IP %s:\n%v", client.ObjectKeyFromObject(&existingIpamIP), helper.PrettyFormat(existingIpamIP.Status, log))
+			if err := k.Client.Delete(ctx, &existingIpamIP); err != nil {
+				return nil, fmt.Errorf("failed to delete IP %s: %w", client.ObjectKeyFromObject(&existingIpamIP), err)
 			}
 
-			err = k.waitForDeletion(&existingIpamIP)
-			if err != nil {
-				return nil, fmt.Errorf("failed to delete IP %s/%s: %w", existingIpamIP.Namespace, existingIpamIP.Name, err)
+			if err := helper.WaitForIPDeletion(ctx, &existingIpamIP); err != nil {
+				return nil, fmt.Errorf("failed to delete IP %s: %w", client.ObjectKeyFromObject(&existingIpamIP), err)
 			}
 
 			k.EventRecorder.Eventf(&existingIpamIP, corev1.EventTypeNormal, "Deleted", "Deleted old IPAM IP")
-			log.Debugf("Old IP %s/%s deleted from subnet %s", existingIpamIP.Namespace,
-				existingIpamIP.Name, existingIpamIP.Spec.Subnet.Name)
+			log.Infof("Old IP %s deleted from subnet %s", client.ObjectKeyFromObject(&existingIpamIP), existingIpamIP.Spec.Subnet.Name)
 		} else {
 			// IP already exists
 			return &existingIpamIP, nil
@@ -181,23 +168,16 @@ func (k K8sClient) prepareCreateIpamIP(subnetName string, macKey string) (*ipamv
 	return nil, nil
 }
 
-func (k K8sClient) doCreateIpamIP(
-	subnetName string,
-	macKey string,
-	ipaddr net.IP,
-	exactIP bool) (*ipamv1alpha1.IP, error) {
-	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
-	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
-	var ipamIP *ipamv1alpha1.IP
-
-	ipamIP = &ipamv1alpha1.IP{
+func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey string, ipaddr net.IP, exactIP bool) (*ipamv1alpha1.IP, error) {
+	var err error
+	ipamIP := &ipamv1alpha1.IP{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: macKey + "-" + origin + "-",
 			Namespace:    k.Namespace,
 			Labels: map[string]string{
-				"mac":       macKey,
-				"origin":    origin,
-				oobLabelKey: oobLabelValue,
+				"mac":         macKey,
+				"origin":      origin,
+				k.oobLabelKey: k.oobLabelValue,
 			},
 		},
 		Spec: ipamv1alpha1.IPSpec{
@@ -212,16 +192,17 @@ func (k K8sClient) doCreateIpamIP(
 		ipamIP.Spec.IP = ip
 	}
 
-	if err := k.Client.Create(k.Ctx, ipamIP); err != nil {
+	log.Infof("Creating new IP for MAC address %s", macKey)
+	if err := k.Client.Create(ctx, ipamIP); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			return nil, fmt.Errorf("failed to create IP %s/%s: %w", ipamIP.Namespace, ipamIP.Name, err)
+			return nil, fmt.Errorf("failed to create IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 		} else {
 			// do not create IP, because the deletion is not yet ready
 			return nil, nil
 		}
 	}
 
-	ipamIP, err := k.waitForCreation(ipamIP)
+	ipamIP, err = helper.WaitForIPCreation(ctx, ipamIP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IP %w", err)
 	} else {
@@ -231,173 +212,52 @@ func (k K8sClient) doCreateIpamIP(
 
 		// update IP attributes
 		createdIpamIP := ipamIP.DeepCopy()
-		err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
+		err := k.Client.Get(ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get IP %s/%s: %w", createdIpamIP.Namespace, createdIpamIP.Name, err)
+			return nil, fmt.Errorf("failed to get IP %s: %w", client.ObjectKeyFromObject(createdIpamIP), err)
 		}
 		return createdIpamIP, nil
 	}
 }
 
-func (k K8sClient) waitForDeletion(ipamIP *ipamv1alpha1.IP) error {
-	// Define the namespace and resource name (if you want to watch a specific resource)
-	namespace := ipamIP.Namespace
-	resourceName := ipamIP.Name
-	fieldSelector := "metadata.name=" + resourceName + ",metadata.namespace=" + namespace
-	timeout := int64(5)
-
-	// watch for deletion finished event
-	watcher, err := k.Clientset.IpamV1alpha1().IPs(namespace).Watch(context.TODO(), metav1.ListOptions{
-		FieldSelector:  fieldSelector,
-		TimeoutSeconds: &timeout,
-	})
-	if err != nil {
-		log.Errorf("Error watching for IP: %v", err)
+func (k K8sClient) getOOBNetworks(ctx context.Context, subnetType ipamv1alpha1.SubnetAddressType) ([]string, error) {
+	subnetList := &ipamv1alpha1.SubnetList{}
+	if err := k.Client.List(ctx, subnetList, client.InNamespace(k.Namespace), client.MatchingLabels{
+		k.oobLabelKey: k.oobLabelValue,
+	}); err != nil {
+		return nil, fmt.Errorf("error listing OOB subnets: %w", err)
 	}
 
-	log.Tracef("Watching for changes to IP %s/%s...", namespace, resourceName)
-
-	for event := range watcher.ResultChan() {
-		log.Tracef("Type: %s, Object: %v\n", event.Type, event.Object)
-		existingIpamIP := event.Object.(*ipamv1alpha1.IP)
-		if event.Type == watch.Deleted && reflect.DeepEqual(ipamIP.Spec, existingIpamIP.Spec) {
-			log.Infof("IP %s/%s deleted", existingIpamIP.Namespace, existingIpamIP.Name)
-			return nil
-		}
-	}
-	return errors.New("Timeout reached, IP not deleted")
-}
-
-func (k K8sClient) waitForCreation(ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, error) {
-	// Define the namespace and resource name (if you want to watch a specific resource)
-	namespace := ipamIP.Namespace
-	resourceName := ipamIP.Name
-	fieldSelector := "metadata.name=" + resourceName + ",metadata.namespace=" + namespace
-	timeout := int64(10)
-
-	// watch for creation finished event
-	watcher, err := k.Clientset.IpamV1alpha1().IPs(namespace).Watch(context.TODO(), metav1.ListOptions{
-		FieldSelector:  fieldSelector,
-		TimeoutSeconds: &timeout,
-	})
-	if err != nil {
-		log.Errorf("Error watching for IP: %v", err)
-	}
-
-	log.Tracef("Watching for changes to IP %s/%s...", namespace, resourceName)
-
-	for event := range watcher.ResultChan() {
-		log.Tracef("Type: %s, Object: %v\n", event.Type, event.Object)
-		createdIpamIP := event.Object.(*ipamv1alpha1.IP)
-		if event.Type == watch.Added || event.Type == watch.Modified {
-			if createdIpamIP.Status.State == ipamv1alpha1.CFinishedIPState {
-				log.Debug("IP creation finished")
-				return createdIpamIP, nil
-			} else if createdIpamIP.Status.State == ipamv1alpha1.CProcessingIPState {
-				continue
-			} else if createdIpamIP.Status.State == ipamv1alpha1.CFailedIPState {
-				return nil, errors.New("Failed to create IP address")
-			}
-		}
-	}
-	return nil, errors.New("Timeout reached, IP not created")
-}
-
-func (k K8sClient) getOOBNetworks(subnetType ipamv1alpha1.SubnetAddressType) []string {
-	timeout := int64(5)
-
-	subnetList, err := k.Clientset.IpamV1alpha1().Subnets(k.Namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector:  k.OobLabel,
-		TimeoutSeconds: &timeout,
-	})
-	if err != nil {
-		log.Errorf("Error listing OOB subnets: %v", err)
-	}
-
-	oobSubnetNames := []string{}
+	var oobSubnetNames []string
 	for _, subnet := range subnetList.Items {
 		if subnet.Status.Type == subnetType {
 			oobSubnetNames = append(oobSubnetNames, subnet.Name)
 		}
 	}
 
-	return oobSubnetNames
+	return oobSubnetNames, nil
 }
 
-func (k K8sClient) getMatchingSubnet(subnetName string, ipaddr net.IP) (*ipamv1alpha1.Subnet, error) {
-	subnet := &ipamv1alpha1.Subnet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      subnetName,
-			Namespace: k.Namespace,
-		},
+func (k K8sClient) getMatchingSubnet(ctx context.Context, subnetName string, ipaddr net.IP) (*ipamv1alpha1.Subnet, error) {
+	subnet := &ipamv1alpha1.Subnet{}
+	if err := k.Client.Get(ctx, types.NamespacedName{Name: subnetName, Namespace: k.Namespace}, subnet); apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("cannot select subnet %s, does not exist", client.ObjectKeyFromObject(subnet))
+	} else if !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to get subnet %s: %w", client.ObjectKeyFromObject(subnet), err)
 	}
-	existingSubnet := subnet.DeepCopy()
-	err := k.Client.Get(k.Ctx, client.ObjectKeyFromObject(subnet), existingSubnet)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("failed to get subnet %s/%s: %w", k.Namespace, subnetName, err)
-	}
-	if apierrors.IsNotFound(err) {
-		log.Debugf("Cannot select subnet %s/%s, does not exist", k.Namespace, subnetName)
-		return nil, nil
-	}
-	if !checkIPInCIDR(ipaddr, existingSubnet.Status.Reserved.String()) && ipaddr.String() != UNKNOWN_IP {
-		log.Debugf("Cannot select subnet %s/%s, CIDR mismatch", k.Namespace, subnetName)
-		return nil, nil
+
+	if !helper.CheckIPInCIDR(ipaddr, subnet.Status.Reserved.String(), log) && ipaddr.String() != UNKNOWN_IP {
+		return nil, fmt.Errorf("cannot select subnet %s, CIDR mismatch", client.ObjectKeyFromObject(subnet))
 	}
 
 	return subnet, nil
 }
 
-func (k K8sClient) applySubnetLabel(ipamIP *ipamv1alpha1.IP) {
-	oobLabelKey := strings.Split(k.OobLabel, "=")[0]
-	oobLabelValue := strings.Split(k.OobLabel, "=")[1]
-
-	log.Debugf("Current labels: %v", ipamIP.Labels)
-
-	_, exists := ipamIP.Labels[oobLabelKey]
-	if exists && ipamIP.Labels[oobLabelKey] == oobLabelValue {
-		log.Debug("Subnet label up-to-date")
-	} else {
-		if !exists {
-			ipamIP, err := k.Clientset.IpamV1alpha1().IPs(ipamIP.Namespace).Get(context.TODO(), ipamIP.Name, metav1.GetOptions{})
-			if err != nil {
-				log.Errorf("Error applying subnet label to IPAM IP %s: %v\n", ipamIP.Name, err)
-			} else {
-				if ipamIP.Labels == nil {
-					ipamIP.Labels = make(map[string]string)
-				}
-			}
-		}
-
-		ipamIP.Labels[oobLabelKey] = oobLabelValue
-		_, err := k.Clientset.IpamV1alpha1().IPs(ipamIP.Namespace).Update(context.TODO(), ipamIP, metav1.UpdateOptions{})
-		if err != nil {
-			log.Errorf("Error applying label to IPAM IP %s: %v\n", ipamIP.Name, err)
-		} else {
-			log.Debugf("Subnet label applied to IPAM IP %s\n", ipamIP.Name)
-		}
+func (k K8sClient) applySubnetLabel(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
+	ipamIPBase := ipamIP.DeepCopy()
+	ipamIP.Labels[k.oobLabelKey] = k.oobLabelValue
+	if err := k.Client.Patch(ctx, ipamIP, client.MergeFrom(ipamIPBase)); err != nil {
+		return fmt.Errorf("failed to patch IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 	}
-}
-
-func prettyFormat(ipSpec interface{}) string {
-	// Marshal the struct into a JSON string with pretty printing
-	jsonBytes, err := json.MarshalIndent(ipSpec, "", "  ")
-	if err != nil {
-		log.Errorf("Error marshalling JSON: %v", err)
-	}
-
-	// Convert the JSON bytes to a string and print
-	return string(jsonBytes)
-}
-
-func checkIPInCIDR(ip net.IP, cidrStr string) bool {
-	// Parse the CIDR string
-	_, cidrNet, err := net.ParseCIDR(cidrStr)
-	if err != nil {
-		log.Errorf("Error parsing CIDR: %v\n", err)
-		return false
-	}
-
-	// Check if the CIDR contains the IP
-	return cidrNet.Contains(ip)
+	return nil
 }

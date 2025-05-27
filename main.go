@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
 package main
@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/coredhcp/coredhcp/plugins/sleep"
 	"github.com/coredhcp/coredhcp/plugins/staticroute"
 	"github.com/coredhcp/coredhcp/server"
+	"github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	"github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	"github.com/ironcore-dev/fedhcp/plugins/httpboot"
@@ -79,6 +81,10 @@ func main() {
 	var configFile, logLevel string
 	var listPlugins bool
 
+	flag.DurationVar(&helper.Config.IpPollingInterval, "ip-polling-interval", 2*time.Second,
+		"Interval between polling ip state")
+	flag.DurationVar(&helper.Config.IpPollingTimeout, "ip-polling-timeout", 30*time.Second,
+		"Timeout for polling ip state")
 	flag.StringVar(&configFile, "config", "", "config file")
 	flag.BoolVar(&listPlugins, "list-plugins", false, "list plugins")
 	flag.StringVar(&logLevel, "loglevel", "info", "log level (debug, info, warning, error, fatal, panic)")
