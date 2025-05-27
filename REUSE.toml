@@ -6,11 +6,11 @@ SPDX-PackageDownloadLocation = "https://github.com/ironcore-dev/FeDHCP"
 [[annotations]]
 path = [".github/**", ".gitignore", ".golangci.yml", "Dockerfile", "Makefile", "config/**", "example/**", "go.mod", "go.sum", "hack/**", "REUSE.toml"]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2024 SAP SE or an SAP affiliate company and IronCore contributors"
+SPDX-FileCopyrightText = "2025 SAP SE or an SAP affiliate company and IronCore contributors"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = ["docs/**", "README.md"]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2024 SAP SE or an SAP affiliate company and IronCore contributors"
+SPDX-FileCopyrightText = "2025 SAP SE or an SAP affiliate company and IronCore contributors"
 SPDX-License-Identifier = "MIT"

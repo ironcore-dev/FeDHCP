@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 SAP SE or an SAP affiliate company and IronCore contributors
+// SPDX-FileCopyrightText: 2025 SAP SE or an SAP affiliate company and IronCore contributors
 // SPDX-License-Identifier: MIT
 
 package metal
@@ -307,7 +307,7 @@ var _ = Describe("Endpoint", func() {
 	It("Should not return an IP address for a known machine without IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
 
-		ip, err := GetIPAMIPAddressForMACAddress(mac, ipamv1alpha1.CIPv6SubnetType)
+		ip, err := GetIPAMIPAddressForMACAddress(mac, ipamv1alpha1.IPv6SubnetType)
 		Eventually(err).ShouldNot(HaveOccurred())
 		Eventually(ip).Should(BeNil())
 	})
