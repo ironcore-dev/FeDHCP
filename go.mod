@@ -2,8 +2,6 @@ module github.com/ironcore-dev/fedhcp
 
 go 1.24.0
 
-toolchain go1.24.3
-
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20240908184240-576af8676ffa
 	github.com/google/addlicense v1.1.1

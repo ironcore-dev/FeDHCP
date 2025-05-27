@@ -18,15 +18,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	ipPollingInterval = 2 * time.Second
-	ipPollingTimeout  = 30 * time.Second
-)
+type Configuration struct {
+	IpPollingInterval time.Duration
+	IpPollingTimeout  time.Duration
+}
+
+var Config Configuration
 
 func WaitForIPDeletion(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
 	cl := kubernetes.GetClient()
 
-	if err := wait.PollUntilContextTimeout(ctx, ipPollingInterval, ipPollingTimeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, Config.IpPollingInterval, Config.IpPollingTimeout, true, func(ctx context.Context) (bool, error) {
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); err != nil {
 			if !apierrors.IsNotFound(err) {
 				return false, err
@@ -46,7 +48,7 @@ func WaitForIPDeletion(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
 func WaitForIPCreation(ctx context.Context, ipamIP *ipamv1alpha1.IP) (*ipamv1alpha1.IP, error) {
 	cl := kubernetes.GetClient()
 
-	if err := wait.PollUntilContextTimeout(ctx, ipPollingInterval, ipPollingTimeout, true, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, Config.IpPollingInterval, Config.IpPollingTimeout, true, func(ctx context.Context) (bool, error) {
 		if err := cl.Get(ctx, client.ObjectKeyFromObject(ipamIP), ipamIP); err != nil {
 			return false, err
 		}
