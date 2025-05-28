@@ -240,10 +240,12 @@ func (k K8sClient) getOOBNetworks(ctx context.Context, subnetType ipamv1alpha1.S
 
 func (k K8sClient) getMatchingSubnet(ctx context.Context, subnetName string, ipaddr net.IP) (*ipamv1alpha1.Subnet, error) {
 	subnet := &ipamv1alpha1.Subnet{}
-	if err := k.Client.Get(ctx, types.NamespacedName{Name: subnetName, Namespace: k.Namespace}, subnet); apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("cannot select subnet %s, does not exist", client.ObjectKeyFromObject(subnet))
-	} else if !apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("failed to get subnet %s: %w", client.ObjectKeyFromObject(subnet), err)
+	if err := k.Client.Get(ctx, types.NamespacedName{Name: subnetName, Namespace: k.Namespace}, subnet); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("cannot select subnet %s, does not exist", client.ObjectKeyFromObject(subnet))
+		} else {
+			return nil, fmt.Errorf("failed to get subnet %s: %w", client.ObjectKeyFromObject(subnet), err)
+		}
 	}
 
 	if !helper.CheckIPInCIDR(ipaddr, subnet.Status.Reserved.String(), log) && ipaddr.String() != UNKNOWN_IP {
