@@ -28,7 +28,8 @@ env:
   registry: ghcr.io
   image: ghcr.io/${{ github.repository_owner }}/fedhcp
   push: ${{ github.ref == 'refs/heads/main' ||
-       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-to-image')) }}
+       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ok-to-image')) ||
+       (github.event_name == 'release' && github.event.action == 'published') }}
 
 jobs:
   buildAndPush:
