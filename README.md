@@ -120,11 +120,15 @@ The OOB plugin leases an IP address to an out-of-band client, based on a subnet 
 
 An IP object with a random IP address from the subnet's vacant list is created in IPAM, the IP address is then leased back to the client. Currently, no cleanup-on-release is performed, so clients with stable identifiers are guaranteed to become stable IP addresses.
 ### Configuration
-As for in-band, a kubernetes namespace shall be passed as a parameter. Further, a subnet label list in the form `value:key` shall be passed, it is used for subnet detection.
-Providing those in `oob_config.yaml` goes as follows:
+As for in-band, a kubernetes namespace shall be passed as a parameter. Further, a subnet label filter shall be passed, it will be used for subnet detection.
+Providing the label filter in `oob_config.yaml` goes as follows: (a subnet will match if it contains all the labels from the filter)
 ```yaml
 namespace: oob-ns
-subnetLabel: subnet=dhcp
+subnetLabels:
+  - key: dhcp
+    value: "true"
+  - key: foo
+    value: bar
 ```
 ### Notes
 - supports both IPv4 and IPv6
