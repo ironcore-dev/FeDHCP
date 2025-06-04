@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/api"
+
 	"github.com/ironcore-dev/fedhcp/internal/helper"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -33,15 +35,11 @@ const (
 type K8sClient struct {
 	Client        client.Client
 	Namespace     string
-	oobLabelValue string
-	oobLabelKey   string
+	SubnetLabels  []api.SubnetLabel
 	EventRecorder record.EventRecorder
 }
 
-func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
-	if !strings.Contains(oobLabel, "=") {
-		return nil, fmt.Errorf("invalid subnet label: %s, should be 'key=value'", oobLabel)
-	}
+func NewK8sClient(namespace string, oobLabels []api.SubnetLabel) (*K8sClient, error) {
 
 	cfg := kubernetes.GetConfig()
 	cl := kubernetes.GetClient()
@@ -61,12 +59,10 @@ func NewK8sClient(namespace string, oobLabel string) (*K8sClient, error) {
 	recorder := broadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: id})
 	broadcaster.StartRecordingToSink(&corev1client.EventSinkImpl{Interface: corev1Client.Events("")})
 
-	labelKev, labelValue := strings.Split(oobLabel, "=")[0], strings.Split(oobLabel, "=")[1]
 	k8sClient := K8sClient{
 		Client:        cl,
 		Namespace:     namespace,
-		oobLabelKey:   labelKev,
-		oobLabelValue: labelValue,
+		SubnetLabels:  oobLabels,
 		EventRecorder: recorder,
 	}
 
@@ -114,7 +110,7 @@ func (k K8sClient) getIp(
 		} else {
 			log.Debugf("Reserved IP %s (%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
 				client.ObjectKeyFromObject(ipamIP), ipamIP.Spec.Subnet.Name)
-			if err := k.applySubnetLabel(ctx, ipamIP); err != nil {
+			if err := k.applySubnetLabels(ctx, ipamIP); err != nil {
 				return nil, err
 			}
 		}
@@ -170,15 +166,21 @@ func (k K8sClient) prepareCreateIpamIP(ctx context.Context, subnetName string, m
 
 func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey string, ipaddr net.IP, exactIP bool) (*ipamv1alpha1.IP, error) {
 	var err error
+
+	labels := map[string]string{
+		"mac":    macKey,
+		"origin": origin,
+	}
+
+	for _, label := range k.SubnetLabels {
+		labels[label.Key] = label.Value
+	}
+
 	ipamIP := &ipamv1alpha1.IP{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: macKey + "-" + origin + "-",
 			Namespace:    k.Namespace,
-			Labels: map[string]string{
-				"mac":         macKey,
-				"origin":      origin,
-				k.oobLabelKey: k.oobLabelValue,
-			},
+			Labels:       labels,
 		},
 		Spec: ipamv1alpha1.IPSpec{
 			Subnet: corev1.LocalObjectReference{
@@ -221,10 +223,14 @@ func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey
 }
 
 func (k K8sClient) getOOBNetworks(ctx context.Context, subnetType ipamv1alpha1.SubnetAddressType) ([]string, error) {
+	// Convert slice to map
+	subnetLabels := make(map[string]string)
+	for _, label := range k.SubnetLabels {
+		subnetLabels[label.Key] = label.Value
+	}
+
 	subnetList := &ipamv1alpha1.SubnetList{}
-	if err := k.Client.List(ctx, subnetList, client.InNamespace(k.Namespace), client.MatchingLabels{
-		k.oobLabelKey: k.oobLabelValue,
-	}); err != nil {
+	if err := k.Client.List(ctx, subnetList, client.InNamespace(k.Namespace), client.MatchingLabels(subnetLabels)); err != nil {
 		return nil, fmt.Errorf("error listing OOB subnets: %w", err)
 	}
 
@@ -255,9 +261,30 @@ func (k K8sClient) getMatchingSubnet(ctx context.Context, subnetName string, ipa
 	return subnet, nil
 }
 
-func (k K8sClient) applySubnetLabel(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
+func (k K8sClient) applySubnetLabels(ctx context.Context, ipamIP *ipamv1alpha1.IP) error {
 	ipamIPBase := ipamIP.DeepCopy()
-	ipamIP.Labels[k.oobLabelKey] = k.oobLabelValue
+
+	currentLabels := ipamIP.Labels
+	if currentLabels == nil {
+		currentLabels = make(map[string]string)
+	}
+
+	changed := false
+	for _, label := range k.SubnetLabels {
+		if currentVal, exists := currentLabels[label.Key]; !exists || currentVal != label.Value {
+			log.Debugf("Updating label %s: %s -> %s", label.Key, currentVal, label.Value)
+			currentLabels[label.Key] = label.Value
+			changed = true
+		} else {
+			log.Debugf("Label %s already set to %s, skipping", label.Key, label.Value)
+		}
+	}
+
+	if !changed {
+		log.Debugf("No labels to update for IP %s, skipping patch", client.ObjectKeyFromObject(ipamIP))
+		return nil
+	}
+
 	if err := k.Client.Patch(ctx, ipamIP, client.MergeFrom(ipamIPBase)); err != nil {
 		return fmt.Errorf("failed to patch IP %s: %w", client.ObjectKeyFromObject(ipamIP), err)
 	}

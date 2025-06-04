@@ -1,2 +1,6 @@
 namespace: oob-ns
-subnetLabel: subnet=dhcp
+subnetLabels:
+  - key: dhcp
+    value: "true"
+  - key: key-2
+    value: value-2
