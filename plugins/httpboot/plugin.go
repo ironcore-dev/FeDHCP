@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/insomniacslk/dhcp/iana"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
@@ -104,7 +107,11 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	if req != nil {
+		log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	} else {
+		log.Debugf("No request received, creating new response")
+	}
 
 	var ukiURL string
 	if !useBootService {
@@ -128,32 +135,59 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if decap.GetOneOption(dhcpv6.OptionVendorClass) != nil {
-		optVendorClass := decap.GetOneOption(dhcpv6.OptionVendorClass)
-		log.Debugf("VendorClass: %s", optVendorClass.String())
-		vcc := optVendorClass.ToBytes()
-		if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == httpClient {
-			bf := dhcpv6.OptBootFileURL(ukiURL)
-			resp.AddOption(bf)
-			log.Infof("Added option BootFileURL(%d): (%s)", dhcpv6.OptionBootfileURL, ukiURL)
+	switch decap.Type() {
+	case dhcpv6.MessageTypeSolicit, dhcpv6.MessageTypeRequest:
+		if decap.GetOneOption(dhcpv6.OptionVendorClass) != nil {
+			optVendorClass := decap.GetOneOption(dhcpv6.OptionVendorClass)
+			log.Debugf("VendorClass: %s", optVendorClass.String())
+			vcc := optVendorClass.ToBytes()
+			if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == httpClient {
+				bf := dhcpv6.OptBootFileURL(ukiURL)
+				resp.AddOption(bf)
+				log.Infof("Added option BootFileURL(%d): (%s)", dhcpv6.OptionBootfileURL, ukiURL)
 
-			buf := []byte(httpClient)
-			vc := &dhcpv6.OptVendorClass{
-				EnterpriseNumber: 0,
-				Data:             [][]byte{buf},
+				buf := []byte(httpClient)
+				vc := &dhcpv6.OptVendorClass{
+					EnterpriseNumber: 0,
+					Data:             [][]byte{buf},
+				}
+				resp.AddOption(vc)
+				log.Infof("Added option VendorClass %s", vc.String())
+			} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
+				log.Infof("PXEClient VendorClass %s", optVendorClass.String())
+			} else {
+				log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
 			}
-			resp.AddOption(vc)
-			log.Infof("Added option VendorClass %s", vc.String())
-		} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
-			log.Infof("PXEClient VendorClass %s", optVendorClass.String())
-			return resp, false
-		} else {
-			log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
-			return resp, false
+		}
+	case dhcpv6.MessageTypeRelease:
+		if resp == nil {
+			resp = &dhcpv6.Message{
+				MessageType:   dhcpv6.MessageTypeReply,
+				TransactionID: decap.TransactionID,
+			}
+
+			hwaddr, err := net.ParseMAC("00:11:22:33:44:55")
+			if err != nil {
+				return nil, true
+			}
+
+			v6ServerID := &dhcpv6.DUIDLL{
+				HWType:        iana.HWTypeEthernet,
+				LinkLayerAddr: hwaddr,
+			}
+			dhcpv6.WithServerID(v6ServerID)(resp)
+
+			clientID := req.(*dhcpv6.Message).Options.ClientID()
+			dhcpv6.WithClientID(clientID)(resp)
 		}
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	if resp != nil {
+		log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	} else {
+		log.Debugf("No response sent for DHCPv6 request: %s", req.Summary())
+	}
+
 	return resp, false
 }
 
@@ -191,10 +225,10 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			log.Infof("Added option ClassIdentifier %s", ci.String())
 		} else {
 			log.Errorf("non HTTPClient ClassIdentifier %s", string(cic))
-			return resp, false
 		}
+		log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
 	}
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
+
 	return resp, false
 }
 
