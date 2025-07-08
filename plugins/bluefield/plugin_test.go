@@ -103,7 +103,7 @@ var _ = Describe("Bluefield Plugin", func() {
 		Context("when handling Request messages", func() {
 			It("should respond with a Reply message", func() {
 				resp, stop := handleDHCPv6(createRequestMessage(), nil)
-				Expect(stop).To(BeTrue())
+				Expect(stop).To(BeFalse())
 
 				respm, err := resp.GetInnerMessage()
 				Expect(err).NotTo(HaveOccurred())
