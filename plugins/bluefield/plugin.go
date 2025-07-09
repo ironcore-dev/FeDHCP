@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/insomniacslk/dhcp/iana"
+
 	"github.com/ironcore-dev/fedhcp/internal/printer"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -102,6 +104,16 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 				}
 			}
 			addOptIANA(resp, m.Options.OneIANA().IaId)
+		case dhcpv6.MessageTypeRelease:
+			if resp == nil {
+				resp, err = dhcpv6.NewReplyFromMessage(m)
+				if err != nil {
+					log.Errorf("Failed to create DHCPv6 reply: %v", err)
+					return nil, true
+				}
+			}
+			releaseOptIANA(resp, m.Options.OneIANA().IaId, m.Options.OneIANA().Options.Addresses()[0].IPv6Addr)
+			return resp, true
 		}
 	}
 
@@ -122,4 +134,29 @@ func addOptIANA(resp dhcpv6.DHCPv6, iaId [4]byte) {
 		}},
 	})
 	log.Infof("Added option IANA, address %s", ipaddr)
+}
+
+func releaseOptIANA(resp dhcpv6.DHCPv6, iaId [4]byte, clientIP net.IP) {
+	optStatusCode := &dhcpv6.OptStatusCode{}
+
+	if clientIP == nil || !clientIP.Equal(ipaddr) {
+		optStatusCode.StatusCode = iana.StatusNoBinding
+		optStatusCode.StatusMessage = "No binding for address"
+		log.Warningf("Client requested release for address %s, but it does not match the configured IP %s", clientIP, ipaddr)
+	} else {
+		optStatusCode.StatusCode = iana.StatusSuccess
+		optStatusCode.StatusMessage = "Successfully released address"
+		log.Infof("Client requested release for address %s", clientIP)
+	}
+
+	resp.AddOption(&dhcpv6.OptIANA{
+		IaId: iaId,
+		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
+			&dhcpv6.OptIAAddress{
+				Options: dhcpv6.AddressOptions{Options: dhcpv6.Options{
+					optStatusCode,
+				}},
+			},
+		}},
+	})
 }
