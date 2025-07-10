@@ -71,6 +71,7 @@ func setupPlugin(args ...string) (handler.Handler6, error) {
 
 func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) { //nolint:staticcheck
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	m, err := req.GetInnerMessage()
 	if err != nil {
@@ -111,9 +112,6 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) { //nolint:stat
 		})
 
 		dhcpv6.WithServerID(v6ServerID)(resp)
-
-		h.PrintResponse(req, resp, log)
-
 		return resp, false
 
 	case dhcpv6.MessageTypeRequest:
@@ -137,9 +135,6 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) { //nolint:stat
 		})
 
 		dhcpv6.WithServerID(v6ServerID)(resp)
-
-		h.PrintResponse(req, resp, log)
-
 		return resp, true
 	}
 	return nil, false

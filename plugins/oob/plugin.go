@@ -90,6 +90,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -127,8 +128,6 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	if m.Options.OneIANA() == nil {
 		log.Debug("No address requested")
-		h.PrintResponse(req, resp, log)
-
 		return resp, false
 	}
 
@@ -153,8 +152,6 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	resp.AddOption(iana)
 	log.Infof("Client %s: added option IA address %s", macKey, iana.String())
 
-	h.PrintResponse(req, resp, log)
-
 	return resp, false
 }
 
@@ -175,6 +172,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	var ipaddr net.IP
 	var exactIP bool
@@ -214,8 +212,6 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	}
 
 	resp.YourIPAddr = leaseIP
-
-	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

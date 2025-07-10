@@ -77,6 +77,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -105,8 +106,6 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		log.Errorf("Could not create IPAM IP: %s", err)
 		return nil, true
 	}
-
-	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

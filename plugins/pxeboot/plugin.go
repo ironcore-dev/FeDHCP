@@ -126,6 +126,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 
 func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	if tftpBootFileOption == nil || tftpServerNameOption == nil || ipxeBootFileOption == nil {
 		// nothing to do
@@ -163,8 +164,6 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 		}
 	}
 
-	h.PrintResponse(req, resp, log)
-
 	return resp, false
 }
 
@@ -183,6 +182,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	if tftpOption == nil || ipxeOption == nil {
 		// nothing to do
@@ -221,8 +221,6 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 			log.Debugf("Added option %s", *opt)
 		}
 	}
-
-	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

@@ -106,6 +106,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	var ukiURL string
 	if !useBootService {
@@ -114,15 +115,11 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		clientIPs, err := extractClientIP6(req)
 		if err != nil {
 			log.Errorf("failed to extract ClientIP, Error: %v Request: %v ", err, req)
-			h.PrintResponse(req, resp, log)
-
 			return resp, false
 		}
 		ukiURL, err = fetchUKIURL(bootFile6, clientIPs)
 		if err != nil {
 			log.Errorf("failed to fetch UKI URL: %v", err)
-
-			h.PrintResponse(req, resp, log)
 			return resp, false
 		}
 	}
@@ -156,13 +153,12 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}
 	}
 
-	h.PrintResponse(req, resp, log)
-
 	return resp, false
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	var ukiURL string
 	var err error
@@ -197,8 +193,6 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			log.Errorf("non HTTPClient ClassIdentifier %s", string(cic))
 		}
 	}
-
-	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

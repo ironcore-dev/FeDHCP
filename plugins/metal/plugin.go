@@ -146,6 +146,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	if !req.IsRelay() {
 		log.Info("Received non-relay DHCPv6 request. Dropping.")
@@ -166,13 +167,12 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
 
-	h.PrintResponse(req, resp, log)
-
 	return resp, false
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	mac := req.ClientHWAddr
 
@@ -182,8 +182,6 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv4SubnetType); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
-
-	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

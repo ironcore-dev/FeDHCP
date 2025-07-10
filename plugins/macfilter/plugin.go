@@ -75,6 +75,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	h.PrintRequest(req, log)
+	defer h.PrintResponse(req, resp, log)
 
 	var mac net.HardwareAddr
 	var err error
@@ -120,8 +121,6 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		log.Infof("MAC address %s is not allowed", mac.String())
 		return nil, true
 	}
-
-	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }
