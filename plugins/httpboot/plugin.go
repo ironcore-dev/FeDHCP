@@ -19,6 +19,7 @@ import (
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
+	h "github.com/ironcore-dev/fedhcp/internal/helper"
 	"gopkg.in/yaml.v2"
 )
 
@@ -104,7 +105,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	var ukiURL string
 	if !useBootService {
@@ -113,11 +114,15 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		clientIPs, err := extractClientIP6(req)
 		if err != nil {
 			log.Errorf("failed to extract ClientIP, Error: %v Request: %v ", err, req)
+			h.PrintResponse(req, resp, log)
+
 			return resp, false
 		}
 		ukiURL, err = fetchUKIURL(bootFile6, clientIPs)
 		if err != nil {
 			log.Errorf("failed to fetch UKI URL: %v", err)
+
+			h.PrintResponse(req, resp, log)
 			return resp, false
 		}
 	}
@@ -146,19 +151,18 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 			log.Infof("Added option VendorClass %s", vc.String())
 		} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
 			log.Infof("PXEClient VendorClass %s", optVendorClass.String())
-			return resp, false
 		} else {
 			log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
-			return resp, false
 		}
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	log.Debugf("Received DHCPv4 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	var ukiURL string
 	var err error
@@ -191,10 +195,11 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			log.Infof("Added option ClassIdentifier %s", ci.String())
 		} else {
 			log.Errorf("non HTTPClient ClassIdentifier %s", string(cic))
-			return resp, false
 		}
 	}
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
+
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	h "github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/mdlayher/netx/eui64"
 
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -79,7 +80,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -100,6 +101,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	if m.Options.OneIANA() == nil {
 		log.Debug("No address requested")
+		h.PrintResponse(req, resp, log)
+
 		return resp, false
 	}
 
@@ -154,7 +157,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		log.Infof("Client %s, added option IA prefix %s", macKey, iapd.String())
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

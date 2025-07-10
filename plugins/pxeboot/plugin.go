@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"os"
 
+	h "github.com/ironcore-dev/fedhcp/internal/helper"
+
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/iana"
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -123,7 +125,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	log.Debugf("Received DHCPv4 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	if tftpBootFileOption == nil || tftpServerNameOption == nil || ipxeBootFileOption == nil {
 		// nothing to do
@@ -161,7 +163,8 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 		}
 	}
 
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }
 
@@ -179,7 +182,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	if tftpOption == nil || ipxeOption == nil {
 		// nothing to do
@@ -219,6 +222,7 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }

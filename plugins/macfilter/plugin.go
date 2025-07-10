@@ -14,6 +14,7 @@ import (
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
+	h "github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/mdlayher/netx/eui64"
 	"gopkg.in/yaml.v2"
 )
@@ -73,7 +74,8 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	h.PrintRequest(req, log)
+
 	var mac net.HardwareAddr
 	var err error
 
@@ -118,6 +120,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		log.Infof("MAC address %s is not allowed", mac.String())
 		return nil, true
 	}
+
+	h.PrintResponse(req, resp, log)
 
 	return resp, false
 }

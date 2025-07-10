@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 
+	h "github.com/ironcore-dev/fedhcp/internal/helper"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -143,7 +145,7 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	if !req.IsRelay() {
 		log.Info("Received non-relay DHCPv6 request. Dropping.")
@@ -162,15 +164,15 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv6SubnetType); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
-		return resp, false
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	log.Debugf("Received DHCPv4 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	mac := req.ClientHWAddr
 
@@ -178,11 +180,11 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	defer cancel()
 
 	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv4SubnetType); err != nil {
-		log.Errorf("Could not apply peer address: %s", err)
-		return resp, false
+		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
 
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }
 

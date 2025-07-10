@@ -11,6 +11,7 @@ import (
 	"github.com/mdlayher/netx/eui64"
 
 	"github.com/ironcore-dev/fedhcp/internal/api"
+	h "github.com/ironcore-dev/fedhcp/internal/helper"
 	"gopkg.in/yaml.v2"
 
 	"github.com/coredhcp/coredhcp/handler"
@@ -102,7 +103,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	h.PrintRequest(req, log)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -117,6 +118,8 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	if !m.IsOptionRequested(optionZTPCode) {
 		log.Debug("No ZTP option requested")
+		h.PrintResponse(req, resp, log)
+
 		return resp, false
 	}
 
@@ -148,6 +151,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		log.Infof("MAC address %s not found in inventory", mac.String())
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
+	h.PrintResponse(req, resp, log)
+
 	return resp, false
 }
