@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	h "github.com/ironcore-dev/fedhcp/internal/helper"
+	"github.com/ironcore-dev/fedhcp/internal/printer"
+
 	"github.com/mdlayher/netx/eui64"
 
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -80,8 +81,13 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	h.PrintRequest(req, log)
-	defer h.PrintResponse(req, resp, log)
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")

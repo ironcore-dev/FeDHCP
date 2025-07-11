@@ -13,13 +13,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/printer"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
-	h "github.com/ironcore-dev/fedhcp/internal/helper"
 	"gopkg.in/yaml.v2"
 )
 
@@ -105,8 +106,13 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	h.PrintRequest(req, log)
-	defer h.PrintResponse(req, resp, log)
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	var ukiURL string
 	if !useBootService {
@@ -157,8 +163,13 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	h.PrintRequest(req, log)
-	defer h.PrintResponse(req, resp, log)
+	if req == nil {
+		log.Error("Received nil IPv4 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv4)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv4)
 
 	var ukiURL string
 	var err error

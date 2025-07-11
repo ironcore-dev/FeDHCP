@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	h "github.com/ironcore-dev/fedhcp/internal/helper"
+	"github.com/ironcore-dev/fedhcp/internal/printer"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -145,8 +145,13 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	h.PrintRequest(req, log)
-	defer h.PrintResponse(req, resp, log)
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	if !req.IsRelay() {
 		log.Info("Received non-relay DHCPv6 request. Dropping.")
@@ -171,8 +176,13 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	h.PrintRequest(req, log)
-	defer h.PrintResponse(req, resp, log)
+	if req == nil {
+		log.Error("Received nil IPv4 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv4)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv4)
 
 	mac := req.ClientHWAddr
 

@@ -10,9 +10,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/insomniacslk/dhcp/dhcpv4"
-	"github.com/insomniacslk/dhcp/dhcpv6"
-
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	"github.com/sirupsen/logrus"
@@ -91,42 +88,4 @@ func CheckIPInCIDR(ip net.IP, cidrStr string, log *logrus.Entry) bool {
 
 	// Check if the CIDR contains the IP
 	return cidrNet.Contains(ip)
-}
-
-func PrintRequest(req DHCPPacket, log *logrus.Entry) {
-	var packageType string
-
-	switch req.(type) {
-	case *dhcpv4.DHCPv4:
-		packageType = "DHCPv4"
-	case dhcpv6.DHCPv6:
-		packageType = "DHCPv6"
-	default:
-		packageType = "unknown"
-	}
-
-	if req != nil {
-		log.Debugf("Received %s request: %s", packageType, req.Summary())
-	} else {
-		log.Errorf("No %s request received", packageType)
-	}
-}
-
-func PrintResponse(req, resp DHCPPacket, log *logrus.Entry) {
-	var packageType string
-
-	switch resp.(type) {
-	case *dhcpv4.DHCPv4:
-		packageType = "DHCPv4"
-	case dhcpv6.DHCPv6:
-		packageType = "DHCPv6"
-	default:
-		packageType = "unknown"
-	}
-
-	if resp != nil {
-		log.Debugf("Sent %s response: %s", packageType, resp.Summary())
-	} else {
-		log.Debugf("No response sent for %s request: %s", packageType, req.Summary())
-	}
 }
