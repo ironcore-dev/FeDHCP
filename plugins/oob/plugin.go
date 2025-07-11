@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ironcore-dev/fedhcp/internal/printer"
+
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"gopkg.in/yaml.v3"
 
@@ -87,7 +89,13 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("received DHCPv6 packet: %s", req.Summary())
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
@@ -149,8 +157,6 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	resp.AddOption(iana)
 	log.Infof("Client %s: added option IA address %s", macKey, iana.String())
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
-
 	return resp, false
 }
 
@@ -170,14 +176,18 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	mac := req.ClientHWAddr
+	if req == nil {
+		log.Error("Received nil IPv4 request")
+		return nil, true
+	}
 
-	log.Debugf("received DHCPv4 packet: %s", req.Summary())
-	log.Tracef("Message type: %s", req.MessageType().String())
+	printer.VerboseRequest(req, log, printer.IPv4)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv4)
 
 	var ipaddr net.IP
 	var exactIP bool
 
+	mac := req.ClientHWAddr
 	serverIP := resp.ServerIPAddr
 	clientIP := req.ClientIPAddr
 	requestedIP := dhcpv4.GetIP(dhcpv4.OptionRequestedIPAddress, req.Options)
@@ -212,8 +222,6 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	}
 
 	resp.YourIPAddr = leaseIP
-
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
 
 	return resp, false
 }
