@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/ironcore-dev/fedhcp/internal/printer"
+
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/iana"
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -123,7 +125,13 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	log.Debugf("Received DHCPv4 request: %s", req.Summary())
+	if req == nil {
+		log.Error("Received nil IPv4 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv4)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv4)
 
 	if tftpBootFileOption == nil || tftpServerNameOption == nil || ipxeBootFileOption == nil {
 		// nothing to do
@@ -161,7 +169,6 @@ func pxeBootHandler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 		}
 	}
 
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
 	return resp, false
 }
 
@@ -179,7 +186,13 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	if tftpOption == nil || ipxeOption == nil {
 		// nothing to do
@@ -219,6 +232,5 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 	return resp, false
 }

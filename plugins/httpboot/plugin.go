@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/printer"
+
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
@@ -104,7 +106,13 @@ func setup4(args ...string) (handler.Handler4, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("Received DHCPv6 request: %s", req.Summary())
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	var ukiURL string
 	if !useBootService {
@@ -146,19 +154,22 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 			log.Infof("Added option VendorClass %s", vc.String())
 		} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
 			log.Infof("PXEClient VendorClass %s", optVendorClass.String())
-			return resp, false
 		} else {
 			log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
-			return resp, false
 		}
 	}
 
-	log.Debugf("Sent DHCPv6 response: %s", resp.Summary())
 	return resp, false
 }
 
 func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
-	log.Debugf("Received DHCPv4 request: %s", req.Summary())
+	if req == nil {
+		log.Error("Received nil IPv4 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv4)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv4)
 
 	var ukiURL string
 	var err error
@@ -191,10 +202,9 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 			log.Infof("Added option ClassIdentifier %s", ci.String())
 		} else {
 			log.Errorf("non HTTPClient ClassIdentifier %s", string(cic))
-			return resp, false
 		}
 	}
-	log.Debugf("Sent DHCPv4 response: %s", resp.Summary())
+
 	return resp, false
 }
 

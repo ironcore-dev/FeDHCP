@@ -18,6 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type DHCPPacket interface {
+	Summary() string
+}
 type Configuration struct {
 	IpPollingInterval time.Duration
 	IpPollingTimeout  time.Duration

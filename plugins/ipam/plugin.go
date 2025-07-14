@@ -7,12 +7,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/coredhcp/coredhcp/handler"
-	"github.com/coredhcp/coredhcp/logger"
-	"github.com/coredhcp/coredhcp/plugins"
+	"github.com/ironcore-dev/fedhcp/internal/printer"
 
 	"net"
 	"os"
+
+	"github.com/coredhcp/coredhcp/handler"
+	"github.com/coredhcp/coredhcp/logger"
+	"github.com/coredhcp/coredhcp/plugins"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -75,7 +77,13 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
-	log.Debugf("received DHCPv6 packet: %s", req.Summary())
+	if req == nil {
+		log.Error("Received nil IPv6 request")
+		return nil, true
+	}
+
+	printer.VerboseRequest(req, log, printer.IPv6)
+	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
 	if !req.IsRelay() {
 		log.Printf("Received non-relay DHCPv6 request. Dropping.")
