@@ -136,26 +136,29 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if decap.GetOneOption(dhcpv6.OptionVendorClass) != nil {
-		optVendorClass := decap.GetOneOption(dhcpv6.OptionVendorClass)
-		log.Debugf("VendorClass: %s", optVendorClass.String())
-		vcc := optVendorClass.ToBytes()
-		if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == httpClient {
-			bf := dhcpv6.OptBootFileURL(ukiURL)
-			resp.AddOption(bf)
-			log.Infof("Added option BootFileURL(%d): (%s)", dhcpv6.OptionBootfileURL, ukiURL)
+	switch decap.Type() {
+	case dhcpv6.MessageTypeSolicit, dhcpv6.MessageTypeRequest:
+		if decap.GetOneOption(dhcpv6.OptionVendorClass) != nil {
+			optVendorClass := decap.GetOneOption(dhcpv6.OptionVendorClass)
+			log.Debugf("VendorClass: %s", optVendorClass.String())
+			vcc := optVendorClass.ToBytes()
+			if len(vcc) >= 16 && binary.BigEndian.Uint16(vcc[4:6]) >= 10 && string(vcc[6:16]) == httpClient {
+				bf := dhcpv6.OptBootFileURL(ukiURL)
+				resp.AddOption(bf)
+				log.Infof("Added option BootFileURL(%d): (%s)", dhcpv6.OptionBootfileURL, ukiURL)
 
-			buf := []byte(httpClient)
-			vc := &dhcpv6.OptVendorClass{
-				EnterpriseNumber: 0,
-				Data:             [][]byte{buf},
+				buf := []byte(httpClient)
+				vc := &dhcpv6.OptVendorClass{
+					EnterpriseNumber: 0,
+					Data:             [][]byte{buf},
+				}
+				resp.AddOption(vc)
+				log.Infof("Added option VendorClass %s", vc.String())
+			} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
+				log.Infof("PXEClient VendorClass %s", optVendorClass.String())
+			} else {
+				log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
 			}
-			resp.AddOption(vc)
-			log.Infof("Added option VendorClass %s", vc.String())
-		} else if len(vcc) >= 15 && binary.BigEndian.Uint16(vcc[4:6]) >= 9 && string(vcc[6:15]) == pxeClient {
-			log.Infof("PXEClient VendorClass %s", optVendorClass.String())
-		} else {
-			log.Warningf("non HTTPClient VendorClass %s", optVendorClass.String())
 		}
 	}
 
