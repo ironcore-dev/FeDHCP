@@ -4,5 +4,5 @@
 package api
 
 type BluefieldConfig struct {
-	BulefieldIP string `yaml:"bulefieldIP"`
+	BluefieldIP string `yaml:"bluefieldIP"`
 }

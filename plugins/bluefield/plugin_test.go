@@ -27,7 +27,7 @@ var _ = Describe("Bluefield Plugin", func() {
 		// Setup temporary test config file
 		testConfigPath = "test_config.yaml"
 		testIP = "2001:db8::1"
-		configData := `bulefieldIP: 2001:db8::1`
+		configData := `bluefieldIP: 2001:db8::1`
 		err = os.WriteFile(testConfigPath, []byte(configData), 0644)
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -43,7 +43,7 @@ var _ = Describe("Bluefield Plugin", func() {
 			config, err := loadConfig(testConfigPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(config).NotTo(BeNil())
-			Expect(config.BulefieldIP).To(Equal(testIP))
+			Expect(config.BluefieldIP).To(Equal(testIP))
 		})
 
 		It("should return an error if the configuration file is missing", func() {

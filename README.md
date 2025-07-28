@@ -13,10 +13,10 @@ Leases a single IP address to a single client as a [non temporary IPv6 address](
 
 Meant to be used in 1:1 client-server connection scenarios, for example a smartnic (Bluefield) leasing a single address to the host.
 ### Configuration
-The IP address to lease shall be passed as a string in `bulefield_config.yaml` goes as follows:
+The IP address to lease shall be passed as a string in `bluefield_config.yaml` goes as follows:
 
 ```yaml
-bulefieldIP: 2001:db8::1
+bluefieldIP: 2001:db8::1
 ```
 
 
