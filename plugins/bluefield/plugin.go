@@ -62,7 +62,7 @@ func setupPlugin(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
-	ipaddr = net.ParseIP(bluefieldIPConfig.BulefieldIP)
+	ipaddr = net.ParseIP(bluefieldIPConfig.BluefieldIP)
 	if ipaddr == nil {
 		return nil, fmt.Errorf("invalid IPv6 address: %s", args[0])
 	}
