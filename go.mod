@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20240908184240-576af8676ffa
-	github.com/google/addlicense v1.1.1
+	github.com/google/addlicense v1.2.0
 	github.com/insomniacslk/dhcp v0.0.0-20240829085014-a3a4c1f04475
 	github.com/ironcore-dev/controller-utils v0.10.0
 	github.com/ironcore-dev/ipam v0.2.3
