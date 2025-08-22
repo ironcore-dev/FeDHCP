@@ -15,8 +15,8 @@ github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb h1:aZTKxMmin
 github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb/go.mod h1:xzXc1S/L+64uglB3pw54o8kqyM6KFYpTeC9Q6+qZIu8=
 github.com/damyan/coredhcp v0.0.0-20250822131401-d6120eb1bd66 h1:ttOV39G9PGr9inxDBLI6YTTXEaTpIv3R6BSp3FOsRsc=
 github.com/damyan/coredhcp v0.0.0-20250822131401-d6120eb1bd66/go.mod h1:A2iJXPupXJVeJZFSrP1Vx/tK6cZ7oci0V/8egMjp2LI=
-github.com/damyan/dhcp v0.0.0-20250326181646-a882567e66e8 h1:M4Z5gQnyehIWBhim+MItlcEX1OLe6U4ylkGQziTkId0=
-github.com/damyan/dhcp v0.0.0-20250326181646-a882567e66e8/go.mod h1:VvGYjkZoJyKqlmT1yzakUs4mfKMNB0XdODP0+rdml6k=
+github.com/damyan/dhcp v0.0.0-20250822131940-1159fb81b9fa h1:oQK7ls5nyF5/JqEBTxOFWnVc4IJAG2XpZ2m+RoyVISY=
+github.com/damyan/dhcp v0.0.0-20250822131940-1159fb81b9fa/go.mod h1:zhFlBeJssZ1YBCMZ5Lzu1pX4vhftDvU10WUVb1uXKtM=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

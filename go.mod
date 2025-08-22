@@ -23,7 +23,7 @@ require (
 
 replace github.com/coredhcp/coredhcp => github.com/damyan/coredhcp v0.0.0-20250822131401-d6120eb1bd66
 
-replace github.com/insomniacslk/dhcp => github.com/damyan/dhcp v0.0.0-20250326181646-a882567e66e8
+replace github.com/insomniacslk/dhcp => github.com/damyan/dhcp v0.0.0-20250822131940-1159fb81b9fa
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
