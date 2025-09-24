@@ -6,13 +6,25 @@ updates:
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      gh-actions-dependencies:
+        patterns:
+          - "*"
     open-pull-requests-limit: 10
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
