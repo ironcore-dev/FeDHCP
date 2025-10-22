@@ -1,6 +1,6 @@
 module github.com/ironcore-dev/fedhcp
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/coredhcp/coredhcp v0.0.0-20250806070228-f7e98e4e350b
