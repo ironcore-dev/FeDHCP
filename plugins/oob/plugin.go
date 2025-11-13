@@ -23,6 +23,7 @@ import (
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/insomniacslk/dhcp/iana"
 
 	"github.com/mdlayher/netx/eui64"
 )
@@ -104,10 +105,9 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	relayMsg := req.(*dhcpv6.RelayMessage)
 
-	// Retrieve IPv6 prefix and MAC address from IPv6 address
-	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	mac, err := getMAC(relayMsg)
 	if err != nil {
-		log.Errorf("Could not parse peer address: %s", err)
+		log.Errorf("Failed to obtain MAC, dropping.")
 		return nil, true
 	}
 
@@ -158,6 +158,22 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	log.Infof("Client %s: added option IA address %s", macKey, iana.String())
 
 	return resp, false
+}
+
+func getMAC(relayMsg *dhcpv6.RelayMessage) (net.HardwareAddr, error) {
+	hwType, mac := relayMsg.Options.ClientLinkLayerAddress()
+	if hwType == iana.HWTypeEthernet {
+		return mac, nil
+	}
+
+	log.Infof("failed to retrieve client link layer address, falling back to EUI64 (%s)", relayMsg.PeerAddr.String())
+	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	if err != nil {
+		log.Errorf("Could not parse peer address: %s", err)
+		return nil, err
+	}
+
+	return mac, nil
 }
 
 func setup4(args ...string) (handler.Handler4, error) {
