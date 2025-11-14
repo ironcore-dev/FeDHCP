@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/insomniacslk/dhcp/iana"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 
 	"gopkg.in/yaml.v2"
@@ -29,7 +30,7 @@ var _ = Describe("Endpoint", func() {
 	ns := SetupTest()
 
 	BeforeEach(func(ctx SpecContext) {
-		By("Creating an IPAM IP objects")
+		By("Creating IPAM IP objects")
 		mac := machineWithIPAddressMACAddress
 		m, err := net.ParseMAC(mac)
 		Expect(err).NotTo(HaveOccurred())
@@ -354,6 +355,35 @@ var _ = Describe("Endpoint", func() {
 			},
 		}
 		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
+	})
+
+	It("Should create an endpoint for IPv6 DHCP request from a unknown machine, if ClientLinkLayer is set to allowed MAC (RFC6939) ", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(unknownMachineMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
+		req, _ := dhcpv6.NewMessage()
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+
+		knownMac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+		relayedRequest.AddOption(dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, knownMac))
+
+		stub, _ := dhcpv6.NewMessage()
+		stub.MessageType = dhcpv6.MessageTypeReply
+		_, _ = handler6(relayedRequest, stub)
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+		}
+
+		knownLinkLocalIPV6Addr, _ := eui64.ParseMAC(ip, knownMac)
+		Eventually(Object(endpoint)).Should(SatisfyAll(
+			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+			HaveField("Spec.IP", metalv1alpha1.MustParseIP(knownLinkLocalIPV6Addr.String()))))
+		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
 	It("Should return and break plugin chain, if getting an IPv6 DHCP request directly (no relay)", func(ctx SpecContext) {
