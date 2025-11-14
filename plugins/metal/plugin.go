@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/ironcore-dev/fedhcp/internal/printer"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -29,7 +30,6 @@ import (
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
-	"github.com/mdlayher/netx/eui64"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -159,9 +159,9 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	}
 
 	relayMsg := req.(*dhcpv6.RelayMessage)
-	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	mac, err := helper.GetMAC(relayMsg, log)
 	if err != nil {
-		log.Errorf("Could not parse peer address %s: %s", relayMsg.PeerAddr.String(), err)
+		log.Errorf("Failed to obtain MAC, dropping.")
 		return nil, true
 	}
 
