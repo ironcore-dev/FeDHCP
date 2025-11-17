@@ -10,8 +10,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/insomniacslk/dhcp/iana"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
+	"github.com/mdlayher/netx/eui64"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -88,4 +91,20 @@ func CheckIPInCIDR(ip net.IP, cidrStr string, log *logrus.Entry) bool {
 
 	// Check if the CIDR contains the IP
 	return cidrNet.Contains(ip)
+}
+
+func GetMAC(relayMsg *dhcpv6.RelayMessage, log *logrus.Entry) (net.HardwareAddr, error) {
+	hwType, mac := relayMsg.Options.ClientLinkLayerAddress()
+	if hwType == iana.HWTypeEthernet {
+		return mac, nil
+	}
+
+	log.Infof("failed to retrieve client link layer address, falling back to EUI64 (%s)", relayMsg.PeerAddr.String())
+	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
+	if err != nil {
+		log.Errorf("Could not parse peer address: %s", err)
+		return nil, err
+	}
+
+	return mac, nil
 }
