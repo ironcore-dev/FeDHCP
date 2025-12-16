@@ -121,7 +121,7 @@ func (k K8sClient) getIp(
 		return nil, fmt.Errorf("no matching subnet found for IP %s/%s", k.Namespace, ipaddr)
 	}
 
-	if ipamIP.Status.Reserved != nil {
+	if ipamIP != nil && ipamIP.Status.Reserved != nil {
 		return net.ParseIP(ipamIP.Status.Reserved.String()), nil
 	} else {
 		return nil, fmt.Errorf("no reserved IP address found")
