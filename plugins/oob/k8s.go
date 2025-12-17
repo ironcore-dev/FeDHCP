@@ -108,8 +108,10 @@ func (k K8sClient) getIp(
 				return nil, err
 			}
 		} else {
-			log.Debugf("Reserved IP %s (%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
-				client.ObjectKeyFromObject(ipamIP), ipamIP.Spec.Subnet.Name)
+			if ipamIP.Status.Reserved != nil {
+				log.Debugf("Reserved IP %s (%s) already exists in subnet %s", ipamIP.Status.Reserved.String(),
+					client.ObjectKeyFromObject(ipamIP), ipamIP.Spec.Subnet.Name)
+			}
 			if err := k.applySubnetLabels(ctx, ipamIP); err != nil {
 				return nil, err
 			}
@@ -207,19 +209,20 @@ func (k K8sClient) doCreateIpamIP(ctx context.Context, subnetName string, macKey
 	ipamIP, err = helper.WaitForIPCreation(ctx, ipamIP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IP %w", err)
-	} else {
+	}
+
+	if ipamIP.Status.Reserved != nil {
 		log.Infof("New IP %s (%s/%s) created in subnet %s", ipamIP.Status.Reserved.String(),
 			ipamIP.Namespace, ipamIP.Name, ipamIP.Spec.Subnet.Name)
-		k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
-
-		// update IP attributes
-		createdIpamIP := ipamIP.DeepCopy()
-		err := k.Client.Get(ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get IP %s: %w", client.ObjectKeyFromObject(createdIpamIP), err)
-		}
-		return createdIpamIP, nil
 	}
+	k.EventRecorder.Eventf(ipamIP, corev1.EventTypeNormal, "Created", "Created IPAM IP")
+
+	createdIpamIP := ipamIP.DeepCopy()
+	err = k.Client.Get(ctx, client.ObjectKeyFromObject(createdIpamIP), createdIpamIP)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to get IP %s: %w", client.ObjectKeyFromObject(createdIpamIP), err)
+	}
+	return createdIpamIP, nil
 }
 
 func (k K8sClient) getOOBNetworks(ctx context.Context, subnetType ipamv1alpha1.SubnetAddressType) ([]string, error) {
@@ -252,6 +255,10 @@ func (k K8sClient) getMatchingSubnet(ctx context.Context, subnetName string, ipa
 		} else {
 			return nil, fmt.Errorf("failed to get subnet %s: %w", client.ObjectKeyFromObject(subnet), err)
 		}
+	}
+
+	if subnet.Status.Reserved == nil {
+		return nil, fmt.Errorf("subnet %s has no reserved CIDR", client.ObjectKeyFromObject(subnet))
 	}
 
 	if !helper.CheckIPInCIDR(ipaddr, subnet.Status.Reserved.String(), log) && ipaddr.String() != UNKNOWN_IP {
