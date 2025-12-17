@@ -362,6 +362,9 @@ func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alph
 }
 
 func ipFamilyMatches(ip ipamv1alpha1.IP, subnetFamily ipamv1alpha1.SubnetAddressType) bool {
+	if ip.Status.Reserved == nil {
+		return false
+	}
 	ipAddr := ip.Status.Reserved.String()
 
 	return strings.Contains(ipAddr, ":") && subnetFamily == "IPv6" ||
