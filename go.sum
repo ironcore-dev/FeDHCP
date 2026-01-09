@@ -97,6 +97,8 @@ github.com/ironcore-dev/ipam v0.2.4 h1:8dEbvggTmLfZFykhyBCPdN6oAQvHfnWPFM5p9Y2Wq
 github.com/ironcore-dev/ipam v0.2.4/go.mod h1:p5+URcAMcCEcYnNjPCnzu7btQcejU8veEZDFbkaTcps=
 github.com/ironcore-dev/metal-operator v0.1.0 h1:0GqpKgfH5hG5jULUESsTr1dUH73ip3YJYIqtV8kBqoY=
 github.com/ironcore-dev/metal-operator v0.1.0/go.mod h1:JMxYoN5PJ0jvKhWlpV6kR9fhBXdLy2NNtvzJXXN/Iuc=
+github.com/jinzhu/copier v0.4.0 h1:w3ciUoD19shMCRargcpm0cm91ytaBhDvuRpz1ODO/U8=
+github.com/jinzhu/copier v0.4.0/go.mod h1:DfbEm0FYsaqBcKcFuvmOZb218JkPGtvSHsKg8S8hyyg=
 github.com/josharian/native v1.1.0 h1:uuaP0hAbW7Y4l0ZRQ6C9zfb7Mg1mbFKry/xzDAfmtLA=
 github.com/josharian/native v1.1.0/go.mod h1:7X/raswPFr05uY3HiLlYeyQntB6OO7E/d2Cu7qoaN2w=
 github.com/joshdk/go-junit v1.0.0 h1:S86cUKIdwBHWwA6xCmFlf3RTLfVXYQfvanM5Uh+K6GE=
