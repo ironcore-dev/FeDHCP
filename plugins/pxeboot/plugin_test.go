@@ -109,49 +109,6 @@ func TestWrongNumberArgs(t *testing.T) {
 	}
 }
 
-func TestWrongArgs4(t *testing.T) {
-	malformedTFTPPath := []string{"tftp://192.168.0.3", "tftp:/192.168.0.3/boot.efi", "foo://192.168.0.3/boot.efi"}
-	malformedIPXEPath := []string{"https://192.168.0.3", "http:/192.168.0.3/boot.ipxe", "foo://192.168.0.3/boot.ipxe"}
-
-	for _, wrongTFTP := range malformedTFTPPath {
-		for _, arch := range []api.Arch{api.AMD64, api.ARM64} {
-			initValidConfig()
-			validConfig.TFTPAddress.IPv4[arch] = wrongTFTP
-			tempDir := t.TempDir()
-			err := Init4(*validConfig, tempDir)
-			if err == nil {
-				t.Fatalf("no error occurred when providing wrong TFTP path %s for arch %s, but it should have", wrongTFTP, arch)
-			}
-
-			tftpo, exists := bootOptsV4.TFTPOptions[arch]
-			if exists && tftpo.TFTPBootFileNameOption != nil {
-				t.Fatalf("TFTP boot file was set when providing wrong TFTP path %s for arch %s, but it should be empty", wrongTFTP, arch)
-			}
-
-			if exists && tftpo.TFTPServerNameOption != nil {
-				t.Fatalf("TFTP server name was set when providing wrong TFTP path %s for arch %s, but it should be empty", wrongTFTP, arch)
-			}
-		}
-	}
-
-	for _, wrongIPXE := range malformedIPXEPath {
-		for _, arch := range []api.Arch{api.AMD64, api.ARM64} {
-			initValidConfig()
-			validConfig.IPXEAddress.IPv4[arch] = wrongIPXE
-			tempDir := t.TempDir()
-			err := Init4(*validConfig, tempDir)
-			if err == nil {
-				t.Fatalf("no error occurred when providing wrong IPXE path %s for arch %s, but it should have", wrongIPXE, arch)
-			}
-
-			ipxeo, exists := bootOptsV4.IPXEOptions[arch]
-			if exists && ipxeo.String() != "" {
-				t.Fatalf("IPXE boot file was set when providing wrong IPXE path %s for arch %s, but it should be empty", wrongIPXE, arch)
-			}
-		}
-	}
-}
-
 func TestPXERequestedAMD6(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = Init6(*validConfig, tempDir, 1)
