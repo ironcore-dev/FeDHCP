@@ -174,14 +174,25 @@ When configured properly, the PXEBoot plugin will [break the PXE chainloading lo
 A TFTP address to an iPXE environment and an HTTP(s) boot script address shall be specified. Providing those in the `pxeboot_config.yaml` goes as follows:
 
 ````yaml
-tftpServer: tftp://[2001:db8::1]/ipxe/x86_64/ipxe
-ipxeServer: http://[2001:db8::1]/ipxe/boot6
+tftpAddress:
+  ipv4:
+    amd64: tftp://192.168.0.1/x86_64/amd64.efi
+    arm64: tftp://192.168.0.1/aarch64/arm64.efi
+  ipv6:
+    amd64: tftp://[2001:db8::1]/x86_64/amd64.efi
+    arm64: tftp://[2001:db8::1]/aarch64/arm64.efi
+ipxeAddress:
+  ipv4:
+    amd64: http://192.168.0.2/ipxe/boot4.pxe
+    arm64: http://192.168.0.2/ipxe/boot4.pxe
+  ipv6:
+    amd64: http://[2001:db8::2]/ipxe/boot6.pxe
+    arm64: http://[2001:db8::2]/ipxe/boot6.pxe
 ````
 
 ### Notes
 - relays are supported for both IPv4 and IPv6
 - TFTP server as well as HTTP boot script server must be provided externally
-- as with `HTTPBoot`, only EFI X64_64 architecture is supported
 
 ## ZTP
 The ZTP plugin provides ZTP (zero touch provisioning) scripts to switches, based on a preconfigured list of MAC addresses. If a client did not request the ZTP script option 239 or the switch MAC is not known, the scripts does nothing.
