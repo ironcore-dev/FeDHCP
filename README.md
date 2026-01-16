@@ -48,9 +48,9 @@ The MAC filter shall be passed as a list of MACs in `macfilter_config.yaml` as f
 ```yaml
 allowList:
   - AA:BB:CC:DD:EE:FF
-  - FF:EE:00:GG:HH:FF
+  - FF:EE:00:99:44:FF
 denyList:
-  - EE:00:FF:GG:HH:FF
+  - EE:00:FF:99:44:FF
 ```
 
 
