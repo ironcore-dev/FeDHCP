@@ -21,14 +21,14 @@ require (
 	sigs.k8s.io/controller-runtime v0.22.4
 )
 
-replace github.com/coredhcp/coredhcp => github.com/damyan/coredhcp v0.0.0-20250822131401-d6120eb1bd66
+replace github.com/coredhcp/coredhcp => github.com/damyan/coredhcp v0.0.0-20260119103218-a013eb017f18
 
-replace github.com/insomniacslk/dhcp => github.com/damyan/dhcp v0.0.0-20250822131940-1159fb81b9fa
+replace github.com/insomniacslk/dhcp => github.com/damyan/dhcp v0.0.0-20251021085928-2a9256c7a006
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.24.1 // indirect
+	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chappjc/logrus-prefix v0.0.0-20180227015900-3a1d64819adb // indirect
