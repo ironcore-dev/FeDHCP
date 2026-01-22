@@ -122,6 +122,7 @@ func parseConfig(args ...string) error {
 		}
 	}
 
+	log.Debugf("before parse config: %v", bootOptsV6)
 	for arch, addr := range pxeBootConfig.IPXEAddress.IPv6 {
 		ipxeAddress, err := url.Parse(addr)
 		if err != nil {
@@ -144,6 +145,7 @@ func parseConfig(args ...string) error {
 
 		bootOptsV6.TFTPOptions[arch] = dhcpv6.OptBootFileURL(tftpAddress.String())
 	}
+	log.Debugf("after parse config: %v", bootOptsV6)
 
 	return nil
 }
@@ -272,6 +274,7 @@ func setup6(args ...string) (handler.Handler6, error) {
 }
 
 func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
+	log.Debugf("Handler: %v", bootOptsV6)
 	if req == nil {
 		log.Error("Received nil IPv6 request")
 		return nil, true
@@ -347,6 +350,7 @@ func isIPXERequested6(req *dhcpv6.Message) bool {
 }
 
 func checkTFTPOptionsV6ForArchAreValid(arch api.Arch) bool {
+	log.Debugf("Checking TFTP options: %v", bootOptsV6)
 	if bootOptsV6.TFTPOptions == nil {
 		return false
 	}
