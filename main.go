@@ -34,6 +34,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	"github.com/ironcore-dev/fedhcp/plugins/bluefield"
+	"github.com/ironcore-dev/fedhcp/plugins/data"
 	"github.com/ironcore-dev/fedhcp/plugins/httpboot"
 	"github.com/ironcore-dev/fedhcp/plugins/ipam"
 	"github.com/ironcore-dev/fedhcp/plugins/macfilter"
@@ -70,6 +71,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&metal.Plugin,
 	&macfilter.Plugin,
 	&ztp.Plugin,
+	&data.Plugin,
 }
 
 var (
