@@ -36,6 +36,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	"github.com/ironcore-dev/fedhcp/plugins/httpboot"
 	"github.com/ironcore-dev/fedhcp/plugins/ipam"
+	"github.com/ironcore-dev/fedhcp/plugins/leases"
 	"github.com/ironcore-dev/fedhcp/plugins/macfilter"
 	"github.com/ironcore-dev/fedhcp/plugins/metal"
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
@@ -70,11 +71,12 @@ var desiredPlugins = []*plugins.Plugin{
 	&metal.Plugin,
 	&macfilter.Plugin,
 	&ztp.Plugin,
+	&leases.Plugin,
 }
 
 var (
 	log                        = logger.GetLogger("main")
-	pluginsRequiringKubernetes = sets.New[string]("oob", "ipam", "metal")
+	pluginsRequiringKubernetes = sets.New[string]("oob", "ipam", "metal", "leases")
 )
 
 func main() {
