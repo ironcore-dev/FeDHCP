@@ -41,6 +41,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
 	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
+	"github.com/ironcore-dev/fedhcp/plugins/stateless"
 	"github.com/ironcore-dev/fedhcp/plugins/ztp"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -70,6 +71,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&metal.Plugin,
 	&macfilter.Plugin,
 	&ztp.Plugin,
+	&stateless.Plugin,
 }
 
 var (
