@@ -260,6 +260,11 @@ func fetchUKIURL(url string, clientIPs []string) (string, error) {
 		return "", err
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		log.Debugf("failed request response body: %s", string(body))
+		return "", fmt.Errorf("HTTP request failed: %s", resp.Status)
+	}
+
 	var data struct {
 		UKIURL string `json:"UKIURL"`
 	}
