@@ -8,7 +8,7 @@ require (
 	github.com/insomniacslk/dhcp v0.0.0-20251020182700-175e84fbb167
 	github.com/ironcore-dev/controller-utils v0.11.0
 	github.com/ironcore-dev/ipam v0.2.4
-	github.com/ironcore-dev/metal-operator v0.3.0
+	github.com/ironcore-dev/metal-operator v0.4.0
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
@@ -83,7 +83,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
-	github.com/stmcginnis/gofish v0.20.0 // indirect
+	github.com/stmcginnis/gofish v0.21.4 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
