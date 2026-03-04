@@ -9,9 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/coredhcp/coredhcp/logger"
+	"github.com/sirupsen/logrus"
 
 	"github.com/coredhcp/coredhcp/config"
 	"github.com/coredhcp/coredhcp/plugins"
@@ -38,6 +37,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/ipam"
 	"github.com/ironcore-dev/fedhcp/plugins/macfilter"
 	"github.com/ironcore-dev/fedhcp/plugins/metal"
+	"github.com/ironcore-dev/fedhcp/plugins/ntp"
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
 	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
@@ -62,13 +62,14 @@ var desiredPlugins = []*plugins.Plugin{
 	&sleep.Plugin,
 	&staticroute.Plugin,
 	&bluefield.Plugin,
+	&httpboot.Plugin,
 	&ipam.Plugin,
 	&onmetal.Plugin,
 	&oob.Plugin,
 	&pxeboot.Plugin,
-	&httpboot.Plugin,
-	&metal.Plugin,
 	&macfilter.Plugin,
+	&metal.Plugin,
+	&ntp.Plugin,
 	&ztp.Plugin,
 }
 
