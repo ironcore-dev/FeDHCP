@@ -56,7 +56,7 @@ jobs:
           flavor: |
             latest=${{ github.ref == 'refs/heads/main' }}
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: all
       - name: Set up Docker Context for Buildx
@@ -71,7 +71,7 @@ jobs:
           endpoint: builders
       - name: Login to GHCR
         if: ${{ env.push }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.registry }}
           username: ${{ github.actor }}
