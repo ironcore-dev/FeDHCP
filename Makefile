@@ -7,7 +7,7 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 
 all: build
 
-build:
+build: generate
 	go build -o bin/fedhcp ./main.go
 
 clean:
@@ -47,8 +47,17 @@ checklicense: ## Check that every file has a license header present.
 lint: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run ./...
 
+.PHONY: generate
+generate: controller-gen goimports ## Generate DeepCopy methods.
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	$(GOIMPORTS) -w .
+
+.PHONY: manifests
+manifests: controller-gen ## Generate CRD manifests.
+	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=config/crd/bases
+
 .PHONY: test
-test: controller-gen fmt vet envtest ## Run tests.
+test: generate manifests fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
 
 ##@ Dependencies

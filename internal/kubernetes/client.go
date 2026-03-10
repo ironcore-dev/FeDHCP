@@ -8,6 +8,7 @@ import (
 
 	"k8s.io/client-go/kubernetes/scheme"
 
+	fedhcpv1alpha1 "github.com/ironcore-dev/fedhcp/api/v1alpha1"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -22,6 +23,7 @@ var (
 )
 
 func init() {
+	utilruntime.Must(fedhcpv1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(ipamv1alpha1.AddToScheme(scheme.Scheme))
 	utilruntime.Must(metalv1alpha1.AddToScheme(scheme.Scheme))
 }
