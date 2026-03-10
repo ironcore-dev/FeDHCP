@@ -35,3 +35,9 @@ rules:
     - endpoints
   verbs:
     - '*'
+- apiGroups:
+    - fedhcp.ironcore.dev
+  resources:
+    - leases
+  verbs:
+    - '*'
