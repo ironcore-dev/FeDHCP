@@ -231,5 +231,17 @@ namespace: default
 - IPv6 relays are mandatory
 - does not modify DHCP responses, only records leases in Kubernetes
 
+## Stateless
+The Stateless plugin derives deterministic IPv6 addresses from DHCPv6 relay messages without requiring persistent state. It generates addresses by combining the relay's `LinkAddr` (used as a `/80` network prefix) with the client's MAC address. The raw 6-byte MAC is copied into bytes 10-15 of the IPv6 address.
+
+For example, given a link address of `2001:db8:1111:2222:3333::` and a MAC of `aa:bb:cc:dd:ee:ff`, the resulting address is `2001:db8:1111:2222:3333:aabb:ccdd:eeff`.
+
+Addresses are leased as [non temporary IPv6 addresses](https://datatracker.ietf.org/doc/html/rfc8415#section-6.2) with a 24-hour lifetime.
+
+### Notes
+- supports IPv6 only
+- IPv6 relays are mandatory
+- the relay's `LinkAddr` must be a valid `/80` prefix (bytes 10-15 must be zero)
+
 # License
 `FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2024 by *coredhcp* and the *FeDHCP* authors.

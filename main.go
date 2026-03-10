@@ -42,6 +42,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
 	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
+	"github.com/ironcore-dev/fedhcp/plugins/stateless"
 	"github.com/ironcore-dev/fedhcp/plugins/ztp"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -64,14 +65,15 @@ var desiredPlugins = []*plugins.Plugin{
 	&staticroute.Plugin,
 	&bluefield.Plugin,
 	&ipam.Plugin,
+	&leases.Plugin,
 	&onmetal.Plugin,
 	&oob.Plugin,
 	&pxeboot.Plugin,
 	&httpboot.Plugin,
 	&metal.Plugin,
 	&macfilter.Plugin,
+	&stateless.Plugin,
 	&ztp.Plugin,
-	&leases.Plugin,
 }
 
 var (
