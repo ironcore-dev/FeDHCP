@@ -204,9 +204,15 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 // GetIPAddressFromDHCPv4Response extracts the offered IPv4 address from a
 // DHCPv4 response. A preceding plugin must have set YourIPAddr.
+// The result is normalized to a 4-byte slice so that String() produces the
+// canonical IPv4 form (e.g. "192.168.1.1") rather than an IPv4-mapped IPv6
+// representation.
 func GetIPAddressFromDHCPv4Response(resp *dhcpv4.DHCPv4) net.IP {
 	if resp == nil || resp.YourIPAddr == nil || resp.YourIPAddr.IsUnspecified() {
 		return nil
+	}
+	if ip4 := resp.YourIPAddr.To4(); ip4 != nil {
+		return ip4
 	}
 	return resp.YourIPAddr
 }
