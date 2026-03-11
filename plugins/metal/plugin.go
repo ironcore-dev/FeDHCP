@@ -204,11 +204,16 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 // onmetal) must have populated the IANA before the metal plugin runs.
 func GetIPAddressFromDHCPv6Response(resp dhcpv6.DHCPv6) *netip.Addr {
 	respMsg, ok := resp.(*dhcpv6.Message)
-	if !ok || respMsg.Options.OneIANA() == nil {
+	if !ok {
 		return nil
 	}
 
-	addr := respMsg.Options.OneIANA().Options.OneAddress()
+	iana := respMsg.Options.OneIANA()
+	if iana == nil {
+		return nil
+	}
+
+	addr := iana.Options.OneAddress()
 	if addr == nil {
 		return nil
 	}
@@ -226,7 +231,11 @@ func GetIPAddressFromDHCPv4Response(resp *dhcpv4.DHCPv4) *netip.Addr {
 	if resp == nil || resp.YourIPAddr == nil || resp.YourIPAddr.IsUnspecified() {
 		return nil
 	}
-	parsed, ok := netip.AddrFromSlice(resp.YourIPAddr.To4())
+	ip4 := resp.YourIPAddr.To4()
+	if ip4 == nil {
+		return nil
+	}
+	parsed, ok := netip.AddrFromSlice(ip4)
 	if !ok {
 		return nil
 	}
