@@ -16,7 +16,6 @@ import (
 	"github.com/ironcore-dev/controller-utils/modutils"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
-	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -72,7 +71,6 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			modutils.Dir("github.com/ironcore-dev/metal-operator", "config", "crd", "bases"),
-			modutils.Dir("github.com/ironcore-dev/ipam", "config", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
 
@@ -93,7 +91,6 @@ var _ = BeforeSuite(func() {
 
 	DeferCleanup(testEnv.Stop)
 
-	Expect(ipamv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
 	Expect(metalv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme

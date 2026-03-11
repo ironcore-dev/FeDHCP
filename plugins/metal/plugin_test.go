@@ -6,7 +6,7 @@ package metal
 import (
 	"net"
 	"os"
-	"strings"
+	"time"
 
 	"github.com/insomniacslk/dhcp/iana"
 	"github.com/ironcore-dev/fedhcp/internal/api"
@@ -15,79 +15,33 @@ import (
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
-	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"github.com/mdlayher/netx/eui64"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 )
 
-var _ = Describe("Endpoint", func() {
-	ns := SetupTest()
-
-	BeforeEach(func(ctx SpecContext) {
-		By("Creating IPAM IP objects")
-		mac := machineWithIPAddressMACAddress
-		m, err := net.ParseMAC(mac)
-		Expect(err).NotTo(HaveOccurred())
-		i := net.ParseIP(linkLocalIPV6Prefix)
-		linkLocalIPV6Addr, err := eui64.ParseMAC(i, m)
-		Expect(err).NotTo(HaveOccurred())
-
-		sanitizedMAC := strings.ReplaceAll(mac, ":", "")
-		ipv6Addr, err := ipamv1alpha1.IPAddrFromString(linkLocalIPV6Addr.String())
-		Expect(err).NotTo(HaveOccurred())
-		ipv6 := &ipamv1alpha1.IP{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:    ns.Name,
-				GenerateName: "test-",
-				Labels: map[string]string{
-					"mac": sanitizedMAC,
-				},
+func dhcpv6ResponseWithIANA(ipv6Addr net.IP) *dhcpv6.Message {
+	stub, _ := dhcpv6.NewMessage()
+	stub.MessageType = dhcpv6.MessageTypeReply
+	stub.AddOption(&dhcpv6.OptIANA{
+		IaId: [4]byte{1, 2, 3, 4},
+		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
+			&dhcpv6.OptIAAddress{
+				IPv6Addr:          ipv6Addr,
+				PreferredLifetime: 24 * time.Hour,
+				ValidLifetime:     24 * time.Hour,
 			},
-			Spec: ipamv1alpha1.IPSpec{
-				Subnet: corev1.LocalObjectReference{
-					Name: "foo",
-				},
-				IP: ipv6Addr,
-			},
-		}
-		Expect(k8sClient.Create(ctx, ipv6)).To(Succeed())
-		DeferCleanup(k8sClient.Delete, ipv6)
-
-		Eventually(UpdateStatus(ipv6, func() {
-			ipv6.Status.Reserved = ipv6Addr
-		})).Should(Succeed())
-
-		ipv4Addr, err := ipamv1alpha1.IPAddrFromString(privateIPV4Address)
-		Expect(err).NotTo(HaveOccurred())
-		ipv4 := &ipamv1alpha1.IP{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:    ns.Name,
-				GenerateName: "test-",
-				Labels: map[string]string{
-					"mac": sanitizedMAC,
-				},
-			},
-			Spec: ipamv1alpha1.IPSpec{
-				Subnet: corev1.LocalObjectReference{
-					Name: "bar",
-				},
-				IP: ipv4Addr,
-			},
-		}
-
-		Expect(k8sClient.Create(ctx, ipv4)).To(Succeed())
-		DeferCleanup(k8sClient.Delete, ipv4)
-
-		Eventually(UpdateStatus(ipv4, func() {
-			ipv4.Status.Reserved = ipv4Addr
-		})).Should(Succeed())
+		}},
 	})
+	return stub
+}
+
+var _ = Describe("Endpoint", func() {
+	_ = SetupTest()
 
 	It("Setup6 should return error if less arguments are provided", func() {
 		_, err := setup6()
@@ -237,8 +191,7 @@ var _ = Describe("Endpoint", func() {
 		req.MessageType = dhcpv6.MessageTypeRequest
 		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
 
-		stub, _ := dhcpv6.NewMessage()
-		stub.MessageType = dhcpv6.MessageTypeReply
+		stub := dhcpv6ResponseWithIANA(linkLocalIPV6Addr)
 		_, _ = handler6(relayedRequest, stub)
 
 		endpoint := &metalv1alpha1.Endpoint{
@@ -283,8 +236,7 @@ var _ = Describe("Endpoint", func() {
 		inventory, err = loadConfig(file.Name())
 		Expect(err).NotTo(HaveOccurred())
 
-		stub, _ := dhcpv6.NewMessage()
-		stub.MessageType = dhcpv6.MessageTypeReply
+		stub := dhcpv6ResponseWithIANA(linkLocalIPV6Addr)
 		_, _ = handler6(relayedRequest, stub)
 
 		epList := &metalv1alpha1.EndpointList{}
@@ -305,36 +257,26 @@ var _ = Describe("Endpoint", func() {
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
-	It("Should not return an IP address for a known machine without IP address", func(ctx SpecContext) {
-		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+	It("Should not create an endpoint for IPv6 DHCP request when response has no IANA", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
 
-		ip, err := GetIPAMIPAddressForMACAddress(mac, ipamv1alpha1.IPv6SubnetType)
-		Eventually(err).ShouldNot(HaveOccurred())
-		Eventually(ip).Should(BeNil())
+		req, _ := dhcpv6.NewMessage()
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+
+		stub, _ := dhcpv6.NewMessage()
+		stub.MessageType = dhcpv6.MessageTypeReply
+		_, _ = handler6(relayedRequest, stub)
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+		}
+		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
-
-	It("Should not create an endpoint for IPv6 DHCP request from a known machine without IP address",
-		func(ctx SpecContext) {
-			mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
-			ip := net.ParseIP(linkLocalIPV6Prefix)
-			linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
-
-			req, _ := dhcpv6.NewMessage()
-			req.MessageType = dhcpv6.MessageTypeRequest
-			relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
-				net.IPv6loopback, linkLocalIPV6Addr)
-
-			stub, _ := dhcpv6.NewMessage()
-			stub.MessageType = dhcpv6.MessageTypeReply
-			_, _ = handler6(relayedRequest, stub)
-
-			endpoint := &metalv1alpha1.Endpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: machineWithoutIPAddressName,
-				},
-			}
-			Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
-		})
 
 	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(unknownMachineMACAddress)
@@ -345,8 +287,7 @@ var _ = Describe("Endpoint", func() {
 		req.MessageType = dhcpv6.MessageTypeRequest
 		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
 
-		stub, _ := dhcpv6.NewMessage()
-		stub.MessageType = dhcpv6.MessageTypeReply
+		stub := dhcpv6ResponseWithIANA(linkLocalIPV6Addr)
 		_, _ = handler6(relayedRequest, stub)
 
 		endpoint := &metalv1alpha1.Endpoint{
@@ -369,8 +310,8 @@ var _ = Describe("Endpoint", func() {
 		knownMac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
 		relayedRequest.AddOption(dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, knownMac))
 
-		stub, _ := dhcpv6.NewMessage()
-		stub.MessageType = dhcpv6.MessageTypeReply
+		knownLinkLocalIPV6Addr, _ := eui64.ParseMAC(ip, knownMac)
+		stub := dhcpv6ResponseWithIANA(knownLinkLocalIPV6Addr)
 		_, _ = handler6(relayedRequest, stub)
 
 		endpoint := &metalv1alpha1.Endpoint{
@@ -379,7 +320,6 @@ var _ = Describe("Endpoint", func() {
 			},
 		}
 
-		knownLinkLocalIPV6Addr, _ := eui64.ParseMAC(ip, knownMac)
 		Eventually(Object(endpoint)).Should(SatisfyAll(
 			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
 			HaveField("Spec.IP", metalv1alpha1.MustParseIP(knownLinkLocalIPV6Addr.String()))))
@@ -403,6 +343,7 @@ var _ = Describe("Endpoint", func() {
 
 		req, _ := dhcpv4.NewDiscovery(mac)
 		stub, _ := dhcpv4.NewReplyFromRequest(req)
+		stub.YourIPAddr = net.ParseIP(privateIPV4Address)
 
 		_, _ = handler4(req, stub)
 
@@ -424,6 +365,7 @@ var _ = Describe("Endpoint", func() {
 
 		req, _ := dhcpv4.NewDiscovery(mac)
 		stub, _ := dhcpv4.NewReplyFromRequest(req)
+		stub.YourIPAddr = net.ParseIP(privateIPV4Address)
 
 		configFile := inventoryConfigFile
 		data := api.MetalConfig{
@@ -466,9 +408,9 @@ var _ = Describe("Endpoint", func() {
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
-	It("Should not create an endpoint for IPv4 DHCP request from a known machine without IP address",
+	It("Should not create an endpoint for IPv4 DHCP request when response has no IP",
 		func(ctx SpecContext) {
-			mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+			mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
 
 			req, _ := dhcpv4.NewDiscovery(mac)
 			stub, _ := dhcpv4.NewReplyFromRequest(req)
@@ -477,17 +419,18 @@ var _ = Describe("Endpoint", func() {
 
 			endpoint := &metalv1alpha1.Endpoint{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: machineWithoutIPAddressName,
+					Name: machineWithIPAddressName,
 				},
 			}
 			Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 		})
 
-	It("Should not create an endpoint for IPv6 DHCP request from a unknown machine", func(ctx SpecContext) {
+	It("Should not create an endpoint for IPv4 DHCP request from a unknown machine", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(unknownMachineMACAddress)
 
 		req, _ := dhcpv4.NewDiscovery(mac)
 		stub, _ := dhcpv4.NewReplyFromRequest(req)
+		stub.YourIPAddr = net.ParseIP(privateIPV4Address)
 
 		_, _ = handler4(req, stub)
 

@@ -139,6 +139,8 @@ subnetLabels:
 ## Metal
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
+The plugin extracts the IP address directly from the DHCP response: for IPv6 from the IANA option, for IPv4 from the `YourIPAddr` field. Therefore, a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) **must** be configured before the `metal` plugin in the handler chain so that the response already contains the leased address.
+
 ### Configuration
 The metal configuration consists of an inventory list. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored. Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
 ```yaml
@@ -164,6 +166,7 @@ The inventories above will get auto-generated names like `server-aybz`.
 ### Notes
 - supports both IPv4 and IPv6
 - IPv6 relays are supported, IPv4 are not
+- must be configured after a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) in the handler chain
 - depends on [metal operator](https://github.com/ironcore-dev/metal)
 
 ## PXEBoot

@@ -28,7 +28,6 @@ import (
 	"github.com/insomniacslk/dhcp/dhcpv6"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
-	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,10 +164,12 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
+	ip := GetIPAddressFromDHCPv6Response(resp)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv6SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(ctx, mac, ip); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
 
@@ -186,26 +187,57 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 
 	mac := req.ClientHWAddr
 
+	ip := GetIPAddressFromDHCPv4Response(resp)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv4SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(ctx, mac, ip); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
 
 	return resp, false
 }
 
-func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
+// GetIPAddressFromDHCPv6Response extracts the leased IPv6 address from the
+// IANA option in a DHCPv6 response. A preceding plugin (e.g. stateless, oob,
+// onmetal) must have populated the IANA before the metal plugin runs.
+func GetIPAddressFromDHCPv6Response(resp dhcpv6.DHCPv6) *netip.Addr {
+	respMsg, ok := resp.(*dhcpv6.Message)
+	if !ok || respMsg.Options.OneIANA() == nil {
+		return nil
+	}
+
+	addr := respMsg.Options.OneIANA().Options.OneAddress()
+	if addr == nil {
+		return nil
+	}
+
+	parsed, ok := netip.AddrFromSlice(addr.IPv6Addr)
+	if !ok {
+		return nil
+	}
+	return &parsed
+}
+
+// GetIPAddressFromDHCPv4Response extracts the offered IPv4 address from a
+// DHCPv4 response. A preceding plugin must have set YourIPAddr.
+func GetIPAddressFromDHCPv4Response(resp *dhcpv4.DHCPv4) *netip.Addr {
+	if resp == nil || resp.YourIPAddr == nil || resp.YourIPAddr.IsUnspecified() {
+		return nil
+	}
+	parsed, ok := netip.AddrFromSlice(resp.YourIPAddr.To4())
+	if !ok {
+		return nil
+	}
+	return &parsed
+}
+
+func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, ip *netip.Addr) error {
 	inventoryName := GetInventoryEntryMatchingMACAddress(mac)
 	if inventoryName == "" {
 		log.Print("Unknown inventory, not processing")
 		return nil
-	}
-
-	ip, err := GetIPAMIPAddressForMACAddress(mac, subnetFamily)
-	if err != nil {
-		return fmt.Errorf("could not get IPAM IP for MAC address %s: %s", mac.String(), err)
 	}
 
 	if ip != nil {
@@ -219,7 +251,7 @@ func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, subne
 			log.Infof("Successfully applied endpoint for inventory %s (%s)", inventoryName, mac.String())
 		}
 	} else {
-		log.Infof("Could not find IPAM IP for MAC address %s", mac.String())
+		log.Infof("No IP address in DHCP response for MAC %s", mac.String())
 	}
 
 	return nil
@@ -335,38 +367,4 @@ func GetInventoryEntryMatchingMACAddress(mac net.HardwareAddr) string {
 	}
 
 	return ""
-}
-
-func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) (*netip.Addr, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cl := kubernetes.GetClient()
-	if cl == nil {
-		return nil, fmt.Errorf("kubernetes client not initialized")
-	}
-
-	ips := &ipamv1alpha1.IPList{}
-	if err := cl.List(ctx, ips); err != nil {
-		return nil, fmt.Errorf("failed to list IPs: %v", err)
-	}
-
-	sanitizedMAC := strings.ReplaceAll(strings.ToLower(mac.String()), ":", "")
-	for _, ip := range ips.Items {
-		if ip.Labels["mac"] == sanitizedMAC && ipFamilyMatches(ip, subnetFamily) {
-			return &ip.Status.Reserved.Net, nil
-		}
-	}
-
-	return nil, nil
-}
-
-func ipFamilyMatches(ip ipamv1alpha1.IP, subnetFamily ipamv1alpha1.SubnetAddressType) bool {
-	if ip.Status.Reserved == nil {
-		return false
-	}
-	ipAddr := ip.Status.Reserved.String()
-
-	return strings.Contains(ipAddr, ":") && subnetFamily == "IPv6" ||
-		strings.Contains(ipAddr, ".") && subnetFamily == "IPv4"
 }
