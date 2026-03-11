@@ -13,7 +13,8 @@ type Filter struct {
 }
 
 type MetalConfig struct {
-	NamePrefix  string      `yaml:"namePrefix"`
-	Inventories []Inventory `yaml:"hosts"`
-	Filter      Filter      `yaml:"filter"`
+	NamePrefix         string      `yaml:"namePrefix"`
+	Inventories        []Inventory `yaml:"hosts"`
+	Filter             Filter      `yaml:"filter"`
+	PersistencyBackend string      `yaml:"persistencyBackend"`
 }

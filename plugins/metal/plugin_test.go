@@ -15,6 +15,7 @@ import (
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	fedhcpv1alpha1 "github.com/ironcore-dev/fedhcp/api/v1alpha1"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
 	metalv1alpha1 "github.com/ironcore-dev/metal-operator/api/v1alpha1"
 	"github.com/mdlayher/netx/eui64"
@@ -308,7 +309,7 @@ var _ = Describe("Endpoint", func() {
 	It("Should not return an IP address for a known machine without IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
 
-		ip, err := GetIPAMIPAddressForMACAddress(mac, ipamv1alpha1.IPv6SubnetType)
+		ip, err := GetIPAMIPAddressForMACAddress(mac, SubnetFamilyIPv6)
 		Eventually(err).ShouldNot(HaveOccurred())
 		Eventually(ip).Should(BeNil())
 	})
@@ -498,4 +499,204 @@ var _ = Describe("Endpoint", func() {
 		}
 		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
+
+	It("Should return error for unknown persistency backend", func() {
+		configFile := inventoryConfigFile
+		data := api.MetalConfig{
+			PersistencyBackend: "unknown",
+			Inventories: []api.Inventory{
+				{
+					Name:       "compute-1",
+					MacAddress: "aa:bb:cc:dd:ee:ff",
+				},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		_, err = loadConfig(file.Name())
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unknown persistency backend"))
+	})
+
+	It("Should default persistency backend to ipam when not specified", func() {
+		configFile := inventoryConfigFile
+		data := api.MetalConfig{
+			Inventories: []api.Inventory{
+				{
+					Name:       "compute-1",
+					MacAddress: "aa:bb:cc:dd:ee:ff",
+				},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		i, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(i.PersistencyBackend).To(Equal(PersistencyBackendIPAM))
+	})
+
+	It("Should set persistency backend to leases when configured", func() {
+		configFile := inventoryConfigFile
+		data := api.MetalConfig{
+			PersistencyBackend: "leases",
+			Inventories: []api.Inventory{
+				{
+					Name:       "compute-1",
+					MacAddress: "aa:bb:cc:dd:ee:ff",
+				},
+			},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		i, err := loadConfig(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(i.PersistencyBackend).To(Equal(PersistencyBackendLeases))
+	})
+})
+
+var _ = Describe("Endpoint with leases backend", func() {
+	ns := SetupTest()
+
+	BeforeEach(func(ctx SpecContext) {
+		By("Setting persistency backend to leases")
+		inventory.PersistencyBackend = PersistencyBackendLeases
+
+		By("Creating Lease objects")
+		mac, err := net.ParseMAC(machineWithIPAddressMACAddress)
+		Expect(err).NotTo(HaveOccurred())
+		i := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, err := eui64.ParseMAC(i, mac)
+		Expect(err).NotTo(HaveOccurred())
+
+		ipv6Lease := &fedhcpv1alpha1.Lease{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ipv6-lease",
+				Namespace: ns.Name,
+			},
+			Spec: fedhcpv1alpha1.LeaseSpec{
+				MAC:       machineWithIPAddressMACAddress,
+				IP:        linkLocalIPV6Addr.String(),
+				FirstSeen: metav1.Now(),
+				Renewed:   metav1.Now(),
+				ExpiresAt: metav1.Now(),
+			},
+		}
+		Expect(k8sClient.Create(ctx, ipv6Lease)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ipv6Lease)
+
+		ipv4Lease := &fedhcpv1alpha1.Lease{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ipv4-lease",
+				Namespace: ns.Name,
+			},
+			Spec: fedhcpv1alpha1.LeaseSpec{
+				MAC:       machineWithIPAddressMACAddress,
+				IP:        privateIPV4Address,
+				FirstSeen: metav1.Now(),
+				Renewed:   metav1.Now(),
+				ExpiresAt: metav1.Now(),
+			},
+		}
+		Expect(k8sClient.Create(ctx, ipv4Lease)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, ipv4Lease)
+	})
+
+	It("Should create an endpoint for IPv6 DHCP request using leases backend", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
+		req, _ := dhcpv6.NewMessage()
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+
+		stub, _ := dhcpv6.NewMessage()
+		stub.MessageType = dhcpv6.MessageTypeReply
+		_, _ = handler6(relayedRequest, stub)
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+		}
+
+		Eventually(Object(endpoint)).Should(SatisfyAll(
+			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+			HaveField("Spec.IP", metalv1alpha1.MustParseIP(linkLocalIPV6Addr.String()))))
+		DeferCleanup(k8sClient.Delete, endpoint)
+	})
+
+	It("Should create an endpoint for IPv4 DHCP request using leases backend", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+
+		req, _ := dhcpv4.NewDiscovery(mac)
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		_, _ = handler4(req, stub)
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+		}
+
+		Eventually(Object(endpoint)).Should(SatisfyAll(
+			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+			HaveField("Spec.IP", metalv1alpha1.MustParseIP(privateIPV4Address))))
+		DeferCleanup(k8sClient.Delete, endpoint)
+	})
+
+	It("Should not return an IP address from leases for a machine without lease", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithoutIPAddressMACAddress)
+
+		ip, err := GetIPAMIPAddressForMACAddress(mac, SubnetFamilyIPv6)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ip).To(BeNil())
+	})
+
+	It("Should not create an endpoint for IPv6 DHCP request from an unknown machine using leases backend",
+		func(ctx SpecContext) {
+			mac, _ := net.ParseMAC(unknownMachineMACAddress)
+			ip := net.ParseIP(linkLocalIPV6Prefix)
+			linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
+			req, _ := dhcpv6.NewMessage()
+			req.MessageType = dhcpv6.MessageTypeRequest
+			relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+
+			stub, _ := dhcpv6.NewMessage()
+			stub.MessageType = dhcpv6.MessageTypeReply
+			_, _ = handler6(relayedRequest, stub)
+
+			endpoint := &metalv1alpha1.Endpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: machineWithIPAddressName,
+				},
+			}
+			Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
+		})
 })

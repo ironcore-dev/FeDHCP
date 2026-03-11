@@ -26,6 +26,7 @@ import (
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	fedhcpv1alpha1 "github.com/ironcore-dev/fedhcp/api/v1alpha1"
 	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
 	ipamv1alpha1 "github.com/ironcore-dev/ipam/api/ipam/v1alpha1"
@@ -46,8 +47,9 @@ var Plugin = plugins.Plugin{
 var inventory *Inventory
 
 type Inventory struct {
-	Entries  map[string]string
-	Strategy OnBoardingStrategy
+	Entries            map[string]string
+	Strategy           OnBoardingStrategy
+	PersistencyBackend PersistencyBackend
 }
 
 // default inventory name prefix
@@ -58,6 +60,20 @@ type OnBoardingStrategy string
 const (
 	OnBoardingStrategyStatic  OnBoardingStrategy = "Static"
 	OnboardingStrategyDynamic OnBoardingStrategy = "Dynamic"
+)
+
+type PersistencyBackend string
+
+const (
+	PersistencyBackendIPAM   PersistencyBackend = "ipam"
+	PersistencyBackendLeases PersistencyBackend = "leases"
+)
+
+type SubnetFamily string
+
+const (
+	SubnetFamilyIPv4 SubnetFamily = "IPv4"
+	SubnetFamilyIPv6 SubnetFamily = "IPv6"
 )
 
 // args[0] = path to inventory file
@@ -100,6 +116,19 @@ func loadConfig(args ...string) (*Inventory, error) {
 
 	inv := &Inventory{}
 	entries := make(map[string]string)
+
+	backend := PersistencyBackend(config.PersistencyBackend)
+	switch backend {
+	case PersistencyBackendIPAM, PersistencyBackendLeases:
+		inv.PersistencyBackend = backend
+	case "":
+		inv.PersistencyBackend = PersistencyBackendIPAM
+	default:
+		return nil, fmt.Errorf("unknown persistency backend %q, must be %q or %q",
+			config.PersistencyBackend, PersistencyBackendIPAM, PersistencyBackendLeases)
+	}
+	log.Debugf("Using persistency backend %q", inv.PersistencyBackend)
+
 	switch {
 	// static inventory list has precedence, always
 	case len(config.Inventories) > 0:
@@ -168,7 +197,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv6SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(ctx, mac, SubnetFamilyIPv6); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
 
@@ -189,14 +218,14 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := ApplyEndpointForMACAddress(ctx, mac, ipamv1alpha1.IPv4SubnetType); err != nil {
+	if err := ApplyEndpointForMACAddress(ctx, mac, SubnetFamilyIPv4); err != nil {
 		log.Errorf("Could not apply endpoint for mac %s: %s", mac.String(), err)
 	}
 
 	return resp, false
 }
 
-func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) error {
+func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, subnetFamily SubnetFamily) error {
 	inventoryName := GetInventoryEntryMatchingMACAddress(mac)
 	if inventoryName == "" {
 		log.Print("Unknown inventory, not processing")
@@ -337,7 +366,16 @@ func GetInventoryEntryMatchingMACAddress(mac net.HardwareAddr) string {
 	return ""
 }
 
-func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alpha1.SubnetAddressType) (*netip.Addr, error) {
+func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily SubnetFamily) (*netip.Addr, error) {
+	switch inventory.PersistencyBackend {
+	case PersistencyBackendLeases:
+		return getIPAddressFromLeases(mac, subnetFamily)
+	default:
+		return getIPAddressFromIPAM(mac, subnetFamily)
+	}
+}
+
+func getIPAddressFromIPAM(mac net.HardwareAddr, subnetFamily SubnetFamily) (*netip.Addr, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -361,12 +399,44 @@ func GetIPAMIPAddressForMACAddress(mac net.HardwareAddr, subnetFamily ipamv1alph
 	return nil, nil
 }
 
-func ipFamilyMatches(ip ipamv1alpha1.IP, subnetFamily ipamv1alpha1.SubnetAddressType) bool {
+func getIPAddressFromLeases(mac net.HardwareAddr, subnetFamily SubnetFamily) (*netip.Addr, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cl := kubernetes.GetClient()
+	if cl == nil {
+		return nil, fmt.Errorf("kubernetes client not initialized")
+	}
+
+	leases := &fedhcpv1alpha1.LeaseList{}
+	if err := cl.List(ctx, leases); err != nil {
+		return nil, fmt.Errorf("failed to list Leases: %v", err)
+	}
+
+	for _, lease := range leases.Items {
+		if lease.Spec.MAC != mac.String() {
+			continue
+		}
+		addr, err := netip.ParseAddr(lease.Spec.IP)
+		if err != nil {
+			log.Debugf("Could not parse IP %q from lease %s: %v", lease.Spec.IP, lease.Name, err)
+			continue
+		}
+		if addr.Is6() && subnetFamily == SubnetFamilyIPv6 ||
+			addr.Is4() && subnetFamily == SubnetFamilyIPv4 {
+			return &addr, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func ipFamilyMatches(ip ipamv1alpha1.IP, subnetFamily SubnetFamily) bool {
 	if ip.Status.Reserved == nil {
 		return false
 	}
 	ipAddr := ip.Status.Reserved.String()
 
-	return strings.Contains(ipAddr, ":") && subnetFamily == "IPv6" ||
-		strings.Contains(ipAddr, ".") && subnetFamily == "IPv4"
+	return strings.Contains(ipAddr, ":") && subnetFamily == SubnetFamilyIPv6 ||
+		strings.Contains(ipAddr, ".") && subnetFamily == SubnetFamilyIPv4
 }

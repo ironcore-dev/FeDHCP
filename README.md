@@ -140,8 +140,11 @@ subnetLabels:
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
 ### Configuration
-The metal configuration consists of an inventory list. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored. Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
+The metal configuration consists of an inventory list and a persistency backend. The `persistencyBackend` option controls where the plugin looks up MAC-to-IP address assignments. Supported values are `ipam` (default) and `leases`. When set to `leases`, the plugin reads `Lease` custom resources (`fedhcp.ironcore.dev/v1alpha1`) instead of IPAM `IP` objects, removing the dependency on the IPAM operator.
+
+Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored. Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
 ```yaml
+persistencyBackend: leases # "ipam" or "leases", default: "ipam"
 hosts:
   - name: server-01
     macAddress: 00:1A:2B:3C:4D:5E
@@ -152,6 +155,7 @@ hosts:
 Providing a MAC address prefix filter list creates `Endpoint`s with a predefined prefix name. When the MAC address of an inventory does not match the prefix, the inventory will not be onboarded, so for now no "onboarding by default" occurs. Obviously a full MAC address is a valid prefix filter.
 To get inventories with certain MACs onboarded, the following `metal_config.yaml` shall be specified:
 ```yaml
+persistencyBackend: leases # "ipam" or "leases", default: "ipam"
 namePrefix: server- # optional prefix, default: "compute-"
 filter:
   macPrefix:
