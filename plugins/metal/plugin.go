@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/netip"
 	"os"
 	"strings"
 
@@ -164,7 +163,11 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	ip := GetIPAddressFromDHCPv6Response(resp)
+	ip, _ := helper.GetIANAAddressAndLifetime(resp)
+	if ip == nil {
+		log.Debug("No IANA address in response, nothing to do")
+		return resp, false
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -199,50 +202,16 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	return resp, false
 }
 
-// GetIPAddressFromDHCPv6Response extracts the leased IPv6 address from the
-// IANA option in a DHCPv6 response. A preceding plugin (e.g. stateless, oob,
-// onmetal) must have populated the IANA before the metal plugin runs.
-func GetIPAddressFromDHCPv6Response(resp dhcpv6.DHCPv6) *netip.Addr {
-	respMsg, ok := resp.(*dhcpv6.Message)
-	if !ok {
-		return nil
-	}
-
-	iana := respMsg.Options.OneIANA()
-	if iana == nil {
-		return nil
-	}
-
-	addr := iana.Options.OneAddress()
-	if addr == nil {
-		return nil
-	}
-
-	parsed, ok := netip.AddrFromSlice(addr.IPv6Addr)
-	if !ok {
-		return nil
-	}
-	return &parsed
-}
-
 // GetIPAddressFromDHCPv4Response extracts the offered IPv4 address from a
 // DHCPv4 response. A preceding plugin must have set YourIPAddr.
-func GetIPAddressFromDHCPv4Response(resp *dhcpv4.DHCPv4) *netip.Addr {
+func GetIPAddressFromDHCPv4Response(resp *dhcpv4.DHCPv4) net.IP {
 	if resp == nil || resp.YourIPAddr == nil || resp.YourIPAddr.IsUnspecified() {
 		return nil
 	}
-	ip4 := resp.YourIPAddr.To4()
-	if ip4 == nil {
-		return nil
-	}
-	parsed, ok := netip.AddrFromSlice(ip4)
-	if !ok {
-		return nil
-	}
-	return &parsed
+	return resp.YourIPAddr
 }
 
-func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, ip *netip.Addr) error {
+func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, ip net.IP) error {
 	inventoryName := GetInventoryEntryMatchingMACAddress(mac)
 	if inventoryName == "" {
 		log.Print("Unknown inventory, not processing")
@@ -266,7 +235,7 @@ func ApplyEndpointForMACAddress(ctx context.Context, mac net.HardwareAddr, ip *n
 	return nil
 }
 
-func ApplyEndpointForInventory(ctx context.Context, name string, mac net.HardwareAddr, ip *netip.Addr) error {
+func ApplyEndpointForInventory(ctx context.Context, name string, mac net.HardwareAddr, ip net.IP) error {
 	if ip == nil {
 		log.Info("No IP address specified. Skipping.")
 		return nil

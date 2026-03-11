@@ -219,7 +219,9 @@ switches:
 - IPv6 relays are mandatory
 
 ## Lease
-The Lease plugin records DHCP leases as Kubernetes `Lease` custom resources (`fedhcp.ironcore.dev/v1alpha1`). It runs after a leasing plugin (like `stateless`) in the handler chain and does not modify DHCP responses. For each leased address it creates or updates a `Lease` object tracking the client MAC, IP address, first seen time, last renewal, and expiration.
+The Lease plugin records DHCP leases as Kubernetes `Lease` custom resources (`fedhcp.ironcore.dev/v1alpha1`). It does not modify DHCP responses, only records leases in Kubernetes. For each leased address it creates or updates a `Lease` object tracking the client MAC, IP address, first seen time, last renewal, and expiration.
+
+The plugin extracts the leased IP address from the IANA option in the DHCPv6 response. Therefore, a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) **must** be configured before the `leases` plugin in the handler chain.
 
 Resource names are derived from the leased IP address (expanded IPv6 with dashes, e.g. `2001-0db8-0000-0000-0000-0000-0000-0001`), ensuring deterministic O(1) lookups.
 
@@ -232,6 +234,7 @@ namespace: default
 ### Notes
 - supports IPv6 only
 - IPv6 relays are mandatory
+- must be configured after a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) in the handler chain
 - does not modify DHCP responses, only records leases in Kubernetes
 
 ## Stateless
