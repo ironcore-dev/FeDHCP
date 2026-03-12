@@ -102,20 +102,12 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	respMsg, ok := resp.(*dhcpv6.Message)
-	if !ok || respMsg.Options.OneIANA() == nil {
-		log.Debug("No IANA in response, nothing to record")
+	ip, validLifetime := helper.GetIANAAddressAndLifetime(resp)
+	if ip == nil {
+		log.Debug("No IANA address in response, nothing to record")
 		return resp, false
 	}
 
-	iana := respMsg.Options.OneIANA()
-	addr := iana.Options.OneAddress()
-	if addr == nil {
-		log.Debug("No address in IANA response, nothing to record")
-		return resp, false
-	}
-
-	ip := addr.IPv6Addr
 	resourceName := ipToResourceName(ip)
 	if resourceName == "" {
 		log.Errorf("Could not convert IP %s to resource name", ip)
@@ -125,7 +117,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err = leaseClient.applyLease(ctx, mac, ip, resourceName, addr.ValidLifetime)
+	err = leaseClient.applyLease(ctx, mac, ip, resourceName, validLifetime)
 	if err != nil {
 		log.Errorf("Failed to apply lease: %v", err)
 		return nil, true

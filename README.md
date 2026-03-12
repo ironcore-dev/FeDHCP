@@ -139,6 +139,8 @@ subnetLabels:
 ## Metal
 The Metal plugin acts as a connection link between DHCP and the IronCore metal stack. It creates an `EndPoint` object for each machine with leased IP address. Those endpoints are then consumed by the metal operator, who then creates the corresponding `Machine` objects.
 
+The plugin extracts the IP address directly from the DHCP response: for IPv6 from the IANA option, for IPv4 from the `YourIPAddr` field. Therefore, a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) **must** be configured before the `metal` plugin in the handler chain so that the response already contains the leased address.
+
 ### Configuration
 The metal configuration consists of an inventory list. Currently, there are two different ways to provide an inventory list: either by specifying a MAC address filter or by providing the inventory list explicitly. If both a static list and a filter are specified in the `metal_config.yaml`, the static list gets a precedence, so the filter will be ignored. Providing an explicit static inventory list in `metal_config.yaml` goes as follows:
 ```yaml
@@ -164,6 +166,7 @@ The inventories above will get auto-generated names like `server-aybz`.
 ### Notes
 - supports both IPv4 and IPv6
 - IPv6 relays are supported, IPv4 are not
+- must be configured after a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) in the handler chain
 - depends on [metal operator](https://github.com/ironcore-dev/metal)
 
 ## PXEBoot
@@ -216,7 +219,9 @@ switches:
 - IPv6 relays are mandatory
 
 ## Lease
-The Lease plugin records DHCP leases as Kubernetes `Lease` custom resources (`fedhcp.ironcore.dev/v1alpha1`). It runs after a leasing plugin (like `stateless`) in the handler chain and does not modify DHCP responses. For each leased address it creates or updates a `Lease` object tracking the client MAC, IP address, first seen time, last renewal, and expiration.
+The Lease plugin records DHCP leases as Kubernetes `Lease` custom resources (`fedhcp.ironcore.dev/v1alpha1`). It does not modify DHCP responses, only records leases in Kubernetes. For each leased address it creates or updates a `Lease` object tracking the client MAC, IP address, first seen time, last renewal, and expiration.
+
+The plugin extracts the leased IP address from the IANA option in the DHCPv6 response. Therefore, a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) **must** be configured before the `leases` plugin in the handler chain.
 
 Resource names are derived from the leased IP address (expanded IPv6 with dashes, e.g. `2001-0db8-0000-0000-0000-0000-0000-0001`), ensuring deterministic O(1) lookups.
 
@@ -229,6 +234,7 @@ namespace: default
 ### Notes
 - supports IPv6 only
 - IPv6 relays are mandatory
+- must be configured after a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) in the handler chain
 - does not modify DHCP responses, only records leases in Kubernetes
 
 ## Stateless

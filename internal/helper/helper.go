@@ -93,6 +93,28 @@ func CheckIPInCIDR(ip net.IP, cidrStr string, log *logrus.Entry) bool {
 	return cidrNet.Contains(ip)
 }
 
+// GetIANAAddressAndLifetime extracts the first IA_NA address and its valid lifetime from a
+// DHCPv6 response. Returns (nil, 0) if the response is not a Message or
+// contains no IANA/address.
+func GetIANAAddressAndLifetime(resp dhcpv6.DHCPv6) (net.IP, time.Duration) {
+	respMsg, ok := resp.(*dhcpv6.Message)
+	if !ok {
+		return nil, 0
+	}
+
+	iana := respMsg.Options.OneIANA()
+	if iana == nil {
+		return nil, 0
+	}
+
+	addr := iana.Options.OneAddress()
+	if addr == nil {
+		return nil, 0
+	}
+
+	return addr.IPv6Addr, addr.ValidLifetime
+}
+
 func GetMAC(relayMsg *dhcpv6.RelayMessage, log *logrus.Entry) (net.HardwareAddr, error) {
 	hwType, mac := relayMsg.Options.ClientLinkLayerAddress()
 	if hwType == iana.HWTypeEthernet {
