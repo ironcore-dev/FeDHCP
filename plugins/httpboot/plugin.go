@@ -114,11 +114,16 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	printer.VerboseRequest(req, log, printer.IPv6)
 	defer printer.VerboseResponse(req, resp, log, printer.IPv6)
 
+	if !req.IsRelay() {
+		log.Printf("Received non-relay DHCPv6 request. Dropping.")
+		return nil, true
+	}
+
 	var ukiURL string
 	if !useBootService {
 		ukiURL = bootFile6
 	} else {
-		clientIPs, err := extractClientIP6(req)
+		clientIPs, err := extractClientIdentifiers6(req, resp)
 		if err != nil {
 			log.Errorf("failed to extract ClientIP, Error: %v Request: %v ", err, req)
 			return resp, false
@@ -179,7 +184,12 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	if !useBootService {
 		ukiURL = bootFile4
 	} else {
-		ukiURL, err = fetchUKIURL(bootFile4, []string{req.ClientIPAddr.String()})
+		clientIDs := extractClientIdentifiers4(req, resp)
+		if len(clientIDs) == 0 {
+			log.Errorf("failed to extract client identifiers from DHCPv4 request")
+			return resp, false
+		}
+		ukiURL, err = fetchUKIURL(bootFile4, clientIDs)
 		if err != nil {
 			log.Errorf("failed to fetch UKI URL: %v", err)
 			return resp, false
@@ -211,29 +221,46 @@ func handler4(req, resp *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, bool) {
 	return resp, false
 }
 
-func extractClientIP6(req dhcpv6.DHCPv6) ([]string, error) {
-	if req.IsRelay() {
-		relayMsg, ok := req.(*dhcpv6.RelayMessage)
-		if !ok {
-			return nil, fmt.Errorf("failed to cast the DHCPv6 request to a RelayMessage")
-		}
+func extractClientIdentifiers6(req, resp dhcpv6.DHCPv6) ([]string, error) {
+	// The handler only accepts relay messages.
+	relayMsg := req.(*dhcpv6.RelayMessage)
 
-		var addresses []string
-		if relayMsg.LinkAddr != nil {
-			addresses = append(addresses, relayMsg.LinkAddr.String())
-		}
+	var addresses []string
 
-		if _, linkLayerAddress := relayMsg.Options.ClientLinkLayerAddress(); linkLayerAddress != nil {
-			addresses = append(addresses, linkLayerAddress.String())
+	respMsg, err := resp.GetInnerMessage()
+	if err == nil {
+		iana := respMsg.Options.OneIANA()
+		if iana != nil {
+			addr := iana.Options.OneAddress()
+			if addr != nil && addr.IPv6Addr != nil && !addr.IPv6Addr.IsUnspecified() {
+				addresses = append(addresses, addr.IPv6Addr.String())
+			}
 		}
-
-		if len(addresses) == 0 {
-			return nil, fmt.Errorf("no client IP or link-layer address found in the relay message")
-		}
-
-		return addresses, nil
 	}
-	return nil, fmt.Errorf("received non-relay DHCPv6 request, client IP cannot be extracted from non-relayed messages")
+
+	if _, linkLayerAddress := relayMsg.Options.ClientLinkLayerAddress(); linkLayerAddress != nil {
+		addresses = append(addresses, linkLayerAddress.String())
+	}
+
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("no client IP or link-layer address found in the relay message or response")
+	}
+
+	return addresses, nil
+}
+
+func extractClientIdentifiers4(req, resp *dhcpv4.DHCPv4) []string {
+	var identifiers []string
+
+	if resp.YourIPAddr != nil && !resp.YourIPAddr.IsUnspecified() {
+		identifiers = append(identifiers, resp.YourIPAddr.String())
+	}
+
+	if len(req.ClientHWAddr) > 0 {
+		identifiers = append(identifiers, req.ClientHWAddr.String())
+	}
+
+	return identifiers
 }
 
 func fetchUKIURL(url string, clientIPs []string) (string, error) {

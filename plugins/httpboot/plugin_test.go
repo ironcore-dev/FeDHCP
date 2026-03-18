@@ -157,13 +157,18 @@ func TestGenericHTTPBootRequested6(t *testing.T) {
 	_ = optVendorClass.FromBytes(buf)
 	req.UpdateOption(&optVendorClass)
 
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	stub, err := dhcpv6.NewMessage()
 	if err != nil {
 		t.Fatal(err)
 	}
 	stub.MessageType = dhcpv6.MessageTypeReply
 
-	resp, stop := handler6(req, stub)
+	resp, stop := handler6(relayedRequest, stub)
 	if resp == nil {
 		t.Fatal("plugin did not return a message")
 	}
@@ -216,13 +221,18 @@ func TestMalformedHTTPBootRequested6(t *testing.T) {
 	_ = optVendorClass.FromBytes(buf)
 	req.UpdateOption(&optVendorClass)
 
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	stub, err := dhcpv6.NewMessage()
 	if err != nil {
 		t.Fatal(err)
 	}
 	stub.MessageType = dhcpv6.MessageTypeReply
 
-	resp, stop := handler6(req, stub)
+	resp, stop := handler6(relayedRequest, stub)
 	if resp == nil {
 		t.Fatal("plugin did not return a message")
 	}
@@ -240,15 +250,33 @@ func TestMalformedHTTPBootRequested6(t *testing.T) {
 		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
 	}
 
+	req2, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req2.MessageType = dhcpv6.MessageTypeRequest
+	req2.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optVendorClass2 := dhcpv6.OptVendorClass{}
 	buf = []byte{
 		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
 		0, 10, // length ot vendor class
 		'H', 'T', 'T', 'P', 'F', 'O', 'O', 'B', 'A', 'R', // WRONG VC
 	}
-	_ = optVendorClass.FromBytes(buf)
-	req.UpdateOption(&optVendorClass)
+	_ = optVendorClass2.FromBytes(buf)
+	req2.UpdateOption(&optVendorClass2)
 
-	resp, stop = handler6(req, stub)
+	relayedRequest2, err := dhcpv6.EncapsulateRelay(req2, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stub2, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub2.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop = handler6(relayedRequest2, stub2)
 	if resp == nil {
 		t.Fatal("plugin did not return a message")
 	}
@@ -327,21 +355,11 @@ func TestHTTPBootNotRelayedMsg6(t *testing.T) {
 	stub.MessageType = dhcpv6.MessageTypeReply
 
 	resp, stop := handler6(req, stub)
-	if resp == nil {
-		t.Fatal("plugin did not return a message")
+	if resp != nil {
+		t.Fatal("plugin should not return a message for non-relay requests")
 	}
-	if stop {
-		t.Error("plugin interrupted processing, but it shouldn't have")
-	}
-
-	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
-	if len(opts) != optionDisabled {
-		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
-	}
-
-	opts = resp.GetOption(dhcpv6.OptionVendorClass)
-	if len(opts) != optionDisabled {
-		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
+	if !stop {
+		t.Error("plugin did not interrupt processing, but it should have")
 	}
 }
 
@@ -504,7 +522,7 @@ func TestCustomHTTPBootRequestedKnownIP(t *testing.T) {
 	}
 
 	macAddress, _ := net.ParseMAC(notKnownClientMAC)
-	ensureBootURL(t, macAddress, relayedRequest, expectedCustomBootURL)
+	ensureBootURL(t, macAddress, net.ParseIP(knownClientIP), relayedRequest, expectedCustomBootURL)
 }
 
 func TestCustomHTTPBootRequestedKnownMAC(t *testing.T) {
@@ -515,7 +533,7 @@ func TestCustomHTTPBootRequestedKnownMAC(t *testing.T) {
 	}
 
 	macAddress, _ := net.ParseMAC(knownClientMAC)
-	ensureBootURL(t, macAddress, relayedRequest, expectedCustomBootURL)
+	ensureBootURL(t, macAddress, nil, relayedRequest, expectedCustomBootURL)
 }
 
 func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
@@ -526,7 +544,7 @@ func TestCustomHTTPBootRequestedUnknownClient(t *testing.T) {
 	}
 
 	macAddress, _ := net.ParseMAC(notKnownClientMAC)
-	ensureBootURL(t, macAddress, relayedRequest, expectedDefaultCustomBootURL)
+	ensureBootURL(t, macAddress, nil, relayedRequest, expectedDefaultCustomBootURL)
 }
 
 func createHTTPBootRequest(t *testing.T, clientIP net.IP) (*dhcpv6.RelayMessage, error) {
@@ -555,7 +573,7 @@ func createHTTPBootRequest(t *testing.T, clientIP net.IP) (*dhcpv6.RelayMessage,
 	return relayedRequest, err
 }
 
-func ensureBootURL(t *testing.T, macAddress net.HardwareAddr, relayedRequest *dhcpv6.RelayMessage, expectedBootURL string) {
+func ensureBootURL(t *testing.T, macAddress net.HardwareAddr, ianaIP net.IP, relayedRequest *dhcpv6.RelayMessage, expectedBootURL string) {
 	opt := dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, macAddress)
 	relayedRequest.AddOption(opt)
 
@@ -564,6 +582,18 @@ func ensureBootURL(t *testing.T, macAddress net.HardwareAddr, relayedRequest *dh
 		t.Fatal(err)
 	}
 	stub.MessageType = dhcpv6.MessageTypeReply
+
+	if ianaIP != nil {
+		ianaOpt := &dhcpv6.OptIANA{
+			IaId: [4]byte{0, 0, 0, 1},
+			Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
+				&dhcpv6.OptIAAddress{
+					IPv6Addr: ianaIP,
+				},
+			}},
+		}
+		stub.AddOption(ianaOpt)
+	}
 
 	resp, stop := handler6(relayedRequest, stub)
 	if resp == nil {
@@ -625,6 +655,63 @@ func TestNoRelayCustomHTTPBootRequested(t *testing.T) {
 	stub.MessageType = dhcpv6.MessageTypeReply
 
 	resp, stop := handler6(req, stub)
+	if resp != nil {
+		t.Fatal("plugin should not return a message for non-relay requests")
+	}
+	if !stop {
+		t.Error("plugin did not interrupt processing, but it should have")
+	}
+}
+
+func TestCustomHTTPBootWithIANAAddress6(t *testing.T) {
+	// IANA address in response should be used for identification, not LinkAddr
+	ip := net.ParseIP(notKnownClientIP)
+	relayedRequest, err := createHTTPBootRequest(t, ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	macAddress, _ := net.ParseMAC(notKnownClientMAC)
+	// IANA IP is known to the mock → should return custom boot URL
+	ensureBootURL(t, macAddress, net.ParseIP(knownClientIP), relayedRequest, expectedCustomBootURL)
+}
+
+func TestCustomHTTPBootWithoutIANA6(t *testing.T) {
+	// Without IANA in response, only MAC is sent for identification
+	ip := net.ParseIP(notKnownClientIP)
+	relayedRequest, err := createHTTPBootRequest(t, ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	macAddress, _ := net.ParseMAC(knownClientMAC)
+	// No IANA, but known MAC → should return custom boot URL via MAC match
+	ensureBootURL(t, macAddress, nil, relayedRequest, expectedCustomBootURL)
+}
+
+func TestCustomHTTPBootWithYourIPAddr4(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = Init4(*customConfig, tempDir)
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	optClassID := dhcpv4.OptClassIdentifier("HTTPClient")
+	req.UpdateOption(optClassID)
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a prior plugin having assigned an IP
+	stub.YourIPAddr = net.ParseIP(knownClientIP)
+
+	resp, stop := handler4(req, stub)
 	if resp == nil {
 		t.Fatal("plugin did not return a message")
 	}
@@ -632,14 +719,14 @@ func TestNoRelayCustomHTTPBootRequested(t *testing.T) {
 		t.Error("plugin interrupted processing, but it shouldn't have")
 	}
 
-	opts := resp.GetOption(dhcpv6.OptionBootfileURL)
-	if len(opts) != optionDisabled {
-		t.Fatalf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
+	bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
+	if bootFileName != expectedCustomBootURL {
+		t.Errorf("Found BootFileName %s, expected %s", bootFileName, expectedCustomBootURL)
 	}
 
-	opts = resp.GetOption(dhcpv6.OptionVendorClass)
-	if len(opts) != optionDisabled {
-		t.Fatalf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
+	ci := dhcpv4.GetString(dhcpv4.OptionClassIdentifier, resp.Options)
+	if ci != string(expectedHTTPClient) {
+		t.Errorf("Found ClassIdentifier %s, expected %s", ci, string(expectedHTTPClient))
 	}
 }
 
