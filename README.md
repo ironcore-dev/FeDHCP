@@ -75,7 +75,8 @@ clientSpecific: false
 ````
 ### Notes
 - not tested on IPv4
-- IPv6 relays are supported
+- IPv6 relays are mandatory
+- must be configured after a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) in the handler chain
 - the only supported client-specific UKI delivery service is the [IronCore Boot Operator](https://github.com/ironcore-dev/boot-operator/)
 - only EFI X64_64 architecture is supported, see https://github.com/ironcore-dev/FeDHCP/issues/154
 
