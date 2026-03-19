@@ -1,9 +1,16 @@
+provisioningScriptAddress: "http://[2001:db8::1]/ztp/provisioning.sh"
+
 switches:
   - macAddress: aa:bb:cc:dd:ee:ff
-    provisioningScriptAddress: "http://[2001:db8::1]/ztp/provision-spine.sh"
     name: spine-1
   - macAddress: 00:11:22:33:44:55
     provisioningScriptAddress: "http://[2001:db8::1]/ztp/provision-leaf.sh"
     name: leaf-1
   - macAddress: 00:11:22:33:44:66
-    provisioningScriptAddress: "http://[2001:db8::1]/ztp/provision-oob.sh"
+    name: oob-1
+
+onieInstallers:
+  - vendor: "onie_vendor:x86_64-accton_as7726_32x-r0"
+    installerURL: "http://[2001:db8::1]/onie/accton_as7726_32x.bin"
+  - vendor: "onie_vendor:x86_64-accton_as9516_32d-r0"
+    installerURL: "http://[2001:db8::1]/onie/accton_as9516_32d.bin"

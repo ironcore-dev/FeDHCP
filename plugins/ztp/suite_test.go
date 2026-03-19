@@ -24,9 +24,14 @@ const (
 	consistentlyDuration          = 1 * time.Second
 	testConfigPath                = "config.yaml"
 	testZtpProvisioningScriptPath = "https://[2001:db8::1]/ztp/provisioning.sh"
+	testZtpOverrideScriptPath     = "https://[2001:db8::1]/ztp/provision-override.sh"
 	linkLocalIPV6Prefix           = "fe80::"
 	inventoryMAC                  = "00:11:22:33:44:55"
+	inventoryMACWithOverride      = "00:11:22:33:44:66"
 	nonInventoryMAC               = "47:11:47:11:47:11"
+	testONIEVendor                = "onie_vendor:x86_64-accton_as7726_32x-r0"
+	testONIEInstallerURL          = "http://[2001:db8::1]/onie/accton_as7726_32x.bin"
+	testONIEUnknownVendor         = "onie_vendor:x86_64-unknown_switch-r0"
 )
 
 func TestZTP(t *testing.T) {
@@ -45,11 +50,22 @@ var _ = BeforeSuite(func() {
 
 	configFile := testConfigPath
 	config := &api.ZTPConfig{
+		ProvisioningScriptAddress: testZtpProvisioningScriptPath,
 		Switches: []api.Switch{
 			{
-				MacAddress:                inventoryMAC,
-				ProvisioningScriptAddress: testZtpProvisioningScriptPath,
-				Name:                      "test-switch",
+				MacAddress: inventoryMAC,
+				Name:       "test-switch",
+			},
+			{
+				MacAddress:                inventoryMACWithOverride,
+				ProvisioningScriptAddress: testZtpOverrideScriptPath,
+				Name:                      "test-switch-override",
+			},
+		},
+		ONIEInstallers: []api.ONIEInstaller{
+			{
+				Vendor:       testONIEVendor,
+				InstallerURL: testONIEInstallerURL,
 			},
 		},
 	}
@@ -65,5 +81,6 @@ var _ = BeforeSuite(func() {
 
 	_, err = setup6(file.Name())
 	Expect(err).NotTo(HaveOccurred())
-	Expect(inventory).To(HaveLen(1))
+	Expect(inventory).To(HaveLen(2))
+	Expect(onieInstallers).To(HaveLen(1))
 })
