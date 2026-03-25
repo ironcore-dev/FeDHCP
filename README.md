@@ -170,6 +170,21 @@ The inventories above will get auto-generated names like `server-aybz`.
 - must be configured after a leasing plugin (e.g. `stateless`, `oob`, `onmetal`) in the handler chain
 - depends on [metal operator](https://github.com/ironcore-dev/metal)
 
+## NTP
+The NTP plugin adds NTP server addresses to DHCP responses. For DHCPv4 it sets [Option 42 (NTP Servers)](https://www.rfc-editor.org/rfc/rfc2132#section-8.3), for DHCPv6 it sets [Option 56 (NTP Server)](https://www.rfc-editor.org/rfc/rfc5908).
+
+### Configuration
+NTP server addresses shall be passed in `ntp_config.yaml` as follows:
+
+```yaml
+servers: [ "192.0.2.1", "192.0.2.2" ]
+servers_v6: [ "2001:db8::1", "2001:db8::2" ]
+```
+
+### Notes
+- supports both IPv4 and IPv6
+- can be placed anywhere in the plugin chain
+
 ## PXEBoot
 The PXEBoot plugin implements an (i)PXE network boot.
 
