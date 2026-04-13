@@ -4,18 +4,12 @@
 package api
 
 type ZTPConfig struct {
-	ProvisioningScriptAddress string          `yaml:"provisioningScriptAddress"`
-	Switches                  []Switch        `yaml:"switches"`
-	ONIEInstallers            []ONIEInstaller `yaml:"onieInstallers"`
+	ProvisioningScriptAddress string   `yaml:"provisioningScriptAddress"`
+	Switches                  []Switch `yaml:"switches"`
 }
 
 type Switch struct {
 	MacAddress                string `yaml:"macAddress"`
 	ProvisioningScriptAddress string `yaml:"provisioningScriptAddress"`
 	Name                      string `yaml:"name"`
-}
-
-type ONIEInstaller struct {
-	Vendor       string `yaml:"vendor"`
-	InstallerURL string `yaml:"installerURL"`
 }
