@@ -37,9 +37,9 @@ var _ = Describe("ZTP Plugin", func() {
 		})
 	})
 
-	Describe("DHCPv6 Message Handling", func() {
-		It("should return provisioning script for known MAC with ZTP option 239 requested", func() {
-			req := createRequest(inventoryMAC, true, true)
+	Describe("DHCPv6 ZTP Message Handling", func() {
+		It("should return global provisioning script for known MAC with ZTP option 239 requested", func() {
+			req := createZTPRequest(inventoryMAC, true, true)
 
 			stub, err := dhcpv6.NewMessage()
 			stub.MessageType = dhcpv6.MessageTypeReply
@@ -55,8 +55,25 @@ var _ = Describe("ZTP Plugin", func() {
 			Expect(opt.OptionData).To(Equal([]byte(testZtpProvisioningScriptPath)))
 		})
 
-		It("should not return provisioning script for not known MAC with ZTP option 239 requested", func() {
-			req := createRequest(nonInventoryMAC, true, true)
+		It("should return per-switch override provisioning script when configured", func() {
+			req := createZTPRequest(inventoryMACWithOverride, true, true)
+
+			stub, err := dhcpv6.NewMessage()
+			stub.MessageType = dhcpv6.MessageTypeReply
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stub).NotTo(BeNil())
+
+			resp, stop := handler6(req, stub)
+			Expect(stop).To(BeFalse())
+
+			opt := resp.GetOneOption(optionZTPCode).(*dhcpv6.OptionGeneric)
+			Expect(opt).NotTo(BeNil())
+			Expect(int(opt.OptionCode)).To(Equal(optionZTPCode))
+			Expect(opt.OptionData).To(Equal([]byte(testZtpOverrideScriptPath)))
+		})
+
+		It("should not return provisioning script for unknown MAC with ZTP option 239 requested", func() {
+			req := createZTPRequest(nonInventoryMAC, true, true)
 
 			stub, err := dhcpv6.NewMessage()
 			stub.MessageType = dhcpv6.MessageTypeReply
@@ -71,7 +88,7 @@ var _ = Describe("ZTP Plugin", func() {
 		})
 
 		It("should not return provisioning script for known MAC with ZTP option 239 not requested", func() {
-			req := createRequest(inventoryMAC, true, false)
+			req := createZTPRequest(inventoryMAC, true, false)
 
 			stub, err := dhcpv6.NewMessage()
 			stub.MessageType = dhcpv6.MessageTypeReply
@@ -86,7 +103,7 @@ var _ = Describe("ZTP Plugin", func() {
 		})
 
 		It("should stop and break the plugin chain for non-relayed messages", func() {
-			req := createRequest("11:22:33:44:55:66", false, false)
+			req := createZTPRequest("11:22:33:44:55:66", false, false)
 
 			stub, err := dhcpv6.NewMessage()
 			stub.MessageType = dhcpv6.MessageTypeReply
@@ -100,7 +117,7 @@ var _ = Describe("ZTP Plugin", func() {
 	})
 })
 
-func createRequest(mac string, relayed bool, optZTPRequested bool) dhcpv6.DHCPv6 {
+func createZTPRequest(mac string, relayed bool, optZTPRequested bool) dhcpv6.DHCPv6 {
 	hwAddr, err := net.ParseMAC(mac)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(hwAddr).NotTo(BeNil())

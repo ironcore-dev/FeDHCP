@@ -32,6 +32,9 @@ var Plugin = plugins.Plugin{
 // map MAC address to inventory name
 var inventory SwitchInventory
 
+// globalProvisioningScriptAddress is the default ZTP script URL for all switches
+var globalProvisioningScriptAddress string
+
 type SwitchInventory []api.Switch
 
 const (
@@ -66,20 +69,42 @@ func loadConfig(args ...string) (*api.ZTPConfig, error) {
 	return config, nil
 }
 
+func validateURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %v", rawURL, err)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Path == "" {
+		return fmt.Errorf("malformed URL %q, should be a valid http(s) URL", rawURL)
+	}
+	return nil
+}
+
 func parseConfig(args ...string) error {
 	ztpConfig, err := loadConfig(args...)
 	if err != nil {
 		return err
 	}
 
+	// Validate global provisioning script address if set
+	if ztpConfig.ProvisioningScriptAddress != "" {
+		if err := validateURL(ztpConfig.ProvisioningScriptAddress); err != nil {
+			return fmt.Errorf("invalid global provisioning script address: %v", err)
+		}
+		globalProvisioningScriptAddress = ztpConfig.ProvisioningScriptAddress
+	}
+
 	for _, switchEntry := range ztpConfig.Switches {
-		scriptURL, err := url.Parse(switchEntry.ProvisioningScriptAddress)
-		if err != nil {
-			return fmt.Errorf("invalid ztp script scriptURL: %v", err)
+		// Resolve provisioning script address: per-switch override or global default
+		scriptAddr := switchEntry.ProvisioningScriptAddress
+		if scriptAddr == "" {
+			scriptAddr = globalProvisioningScriptAddress
 		}
 
-		if (scriptURL.Scheme != "http" && scriptURL.Scheme != "https") || scriptURL.Host == "" || scriptURL.Path == "" {
-			return fmt.Errorf("malformed ZTP script parameter, should be a valid URL")
+		if scriptAddr != "" {
+			if err := validateURL(scriptAddr); err != nil {
+				return fmt.Errorf("invalid ZTP script URL for switch %s: %v", switchEntry.Name, err)
+			}
 		}
 
 		inventory = append(inventory, switchEntry)
@@ -123,16 +148,21 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
-	if !m.IsOptionRequested(optionZTPCode) {
-		log.Debug("No ZTP option requested")
-		return resp, false
+	relayMsg := req.(*dhcpv6.RelayMessage)
+
+	// Handle ZTP provisioning script request
+	if m.IsOptionRequested(optionZTPCode) {
+		handleZTP(relayMsg, resp)
 	}
 
-	relayMsg := req.(*dhcpv6.RelayMessage)
+	return resp, false
+}
+
+func handleZTP(relayMsg *dhcpv6.RelayMessage, resp dhcpv6.DHCPv6) {
 	_, mac, err := eui64.ParseIP(relayMsg.PeerAddr)
 	if err != nil {
 		log.Errorf("could not parse peer address %s: %s", relayMsg.PeerAddr.String(), err)
-		return nil, true
+		return
 	}
 
 	switchMACFound := false
@@ -141,7 +171,18 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 			log.Infof("MAC address %s found in inventory, switch: %s", mac.String(), switchEntry.Name)
 			switchMACFound = true
 
-			buf := []byte(switchEntry.ProvisioningScriptAddress)
+			// Use per-switch override if set, otherwise use global default
+			scriptAddr := switchEntry.ProvisioningScriptAddress
+			if scriptAddr == "" {
+				scriptAddr = globalProvisioningScriptAddress
+			}
+
+			if scriptAddr == "" {
+				log.Warningf("No provisioning script address configured for switch %s", switchEntry.Name)
+				break
+			}
+
+			buf := []byte(scriptAddr)
 			opt := &dhcpv6.OptionGeneric{
 				OptionCode: optionZTPCode,
 				OptionData: buf,
@@ -155,6 +196,4 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	if !switchMACFound {
 		log.Infof("MAC address %s not found in inventory", mac.String())
 	}
-
-	return resp, false
 }
