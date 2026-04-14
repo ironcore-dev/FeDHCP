@@ -23,7 +23,7 @@ const (
 	eventuallyTimeout             = 3 * time.Second
 	consistentlyDuration          = 1 * time.Second
 	testConfigPath                = "config.yaml"
-	testZtpProvisioningScriptPath = "https://2001:db8::1/ztp/provisioning.sh"
+	testZtpProvisioningScriptPath = "https://[2001:db8::1]/ztp/provisioning.sh"
 	linkLocalIPV6Prefix           = "fe80::"
 	inventoryMAC                  = "00:11:22:33:44:55"
 	nonInventoryMAC               = "47:11:47:11:47:11"
