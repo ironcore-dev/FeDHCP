@@ -8,6 +8,10 @@ import (
 )
 
 // +kubebuilder:object:root=true
+// +kubebuilder:printcolumn:name="MAC",type=string,JSONPath=`.spec.mac`
+// +kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.spec.ip`,priority=1
+// +kubebuilder:selectablefield:JSONPath=`.spec.mac`
+// +kubebuilder:selectablefield:JSONPath=`.spec.ip`
 
 // Lease records a DHCP lease issued by fedhcp.
 type Lease struct {

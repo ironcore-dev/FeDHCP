@@ -56,6 +56,9 @@ generate: controller-gen goimports ## Generate DeepCopy methods.
 manifests: controller-gen ## Generate CRD manifests.
 	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=config/crd/bases
 
+.PHONY: check-gen
+check-gen: generate manifests fmt ## Run code generation, manifests generation, and formatting checks.
+
 .PHONY: test
 test: generate manifests fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
