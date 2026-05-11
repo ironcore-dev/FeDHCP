@@ -146,6 +146,63 @@ var _ = Describe("Leases", func() {
 		))
 	})
 
+	It("Should create and then patch a lease for the same IP", func(ctx SpecContext) {
+		leasedIP := net.ParseIP("2001:db8:cccc:dddd:eeee:ff00:1122:3344")
+		expectedName := "2001-0db8-cccc-dddd-eeee-ff00-1122-3344"
+
+		req, err := dhcpv6.NewMessage()
+		Expect(err).NotTo(HaveOccurred())
+		req.MessageType = dhcpv6.MessageTypeRequest
+
+		peerAddr := net.IP{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0xa8, 0xbb, 0xcc, 0xff, 0xfe, 0xdd, 0xee, 0xff}
+		linkAddr := net.ParseIP("2001:db8:cccc:dddd:eeee::")
+
+		relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, linkAddr, peerAddr)
+		Expect(err).NotTo(HaveOccurred())
+
+		stub, err := dhcpv6.NewMessage()
+		Expect(err).NotTo(HaveOccurred())
+		stub.MessageType = dhcpv6.MessageTypeReply
+		stub.AddOption(&dhcpv6.OptIANA{
+			IaId: [4]byte{1, 2, 3, 4},
+			Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
+				&dhcpv6.OptIAAddress{
+					IPv6Addr:          leasedIP,
+					PreferredLifetime: 24 * time.Hour,
+					ValidLifetime:     24 * time.Hour,
+				},
+			}},
+		})
+
+		resp, stop := handler6(relayedRequest, stub)
+		Expect(resp).NotTo(BeNil())
+		Expect(stop).To(BeFalse())
+
+		lease := &fedhcpv1alpha1.Lease{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      expectedName,
+				Namespace: ns.Name,
+			},
+		}
+
+		Eventually(Object(lease)).Should(HaveField("Spec.IP", leasedIP.String()))
+
+		firstRenewed := lease.Spec.Renewed
+
+		time.Sleep(1100 * time.Millisecond)
+
+		resp, stop = handler6(relayedRequest, stub)
+		Expect(resp).NotTo(BeNil())
+		Expect(stop).To(BeFalse())
+
+		Eventually(Object(lease)).Should(SatisfyAll(
+			HaveField("Spec.IP", leasedIP.String()),
+			HaveField("Spec.Renewed.Time", Not(BeTemporally("==", firstRenewed.Time))),
+		))
+
+		DeferCleanup(testK8sClient.Delete, lease)
+	})
+
 	It("Should pass through when response has no IANA", func(ctx SpecContext) {
 		req, err := dhcpv6.NewMessage()
 		Expect(err).NotTo(HaveOccurred())

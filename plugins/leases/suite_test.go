@@ -74,7 +74,6 @@ var _ = BeforeSuite(func() {
 	DeferCleanup(testEnv.Stop)
 
 	Expect(fedhcpv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
-	metav1.AddToGroupVersion(scheme.Scheme, fedhcpv1alpha1.GroupVersion)
 
 	testK8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
