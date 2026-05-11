@@ -63,7 +63,7 @@ var _ = BeforeSuite(func() {
 		},
 		ErrorIfCRDPathMissing: true,
 		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
-			fmt.Sprintf("1.34.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
+			fmt.Sprintf("1.36.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
 	}
 
 	var err error
@@ -74,6 +74,7 @@ var _ = BeforeSuite(func() {
 	DeferCleanup(testEnv.Stop)
 
 	Expect(fedhcpv1alpha1.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
+	metav1.AddToGroupVersion(scheme.Scheme, fedhcpv1alpha1.GroupVersion)
 
 	testK8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
