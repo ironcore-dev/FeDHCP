@@ -6,12 +6,20 @@
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 var (
 	GroupVersion  = schema.GroupVersion{Group: "fedhcp.ironcore.dev", Version: "v1alpha1"}
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	AddToScheme   = SchemeBuilder.AddToScheme
 )
+
+func addKnownTypes(scheme *runtime.Scheme) error {
+	scheme.AddKnownTypes(GroupVersion,
+		&Lease{},
+		&LeaseList{},
+	)
+	return nil
+}
