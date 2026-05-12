@@ -72,9 +72,6 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, err
 	}
-	if inventory == nil || len(inventory.Entries) == 0 {
-		return nil, nil
-	}
 
 	return handler6, nil
 }
@@ -120,7 +117,6 @@ func loadConfig(args ...string) (*Inventory, error) {
 		}
 	default:
 		log.Infof("No inventories loaded")
-		return nil, nil
 	}
 
 	inv.Entries = entries
@@ -134,9 +130,6 @@ func setup4(args ...string) (handler.Handler4, error) {
 	inventory, err = loadConfig(args...)
 	if err != nil {
 		return nil, err
-	}
-	if inventory == nil || len(inventory.Entries) == 0 {
-		return nil, nil
 	}
 
 	return handler4, nil
@@ -330,6 +323,10 @@ func GetEndpointForMACAddress(mac net.HardwareAddr) (*metalv1alpha1.Endpoint, er
 }
 
 func GetInventoryEntryMatchingMACAddress(mac net.HardwareAddr) string {
+	if inventory == nil || len(inventory.Entries) == 0 {
+		return ""
+	}
+
 	switch inventory.Strategy {
 	case OnBoardingStrategyStatic:
 		inventoryName, ok := inventory.Entries[strings.ToLower(mac.String())]
