@@ -94,11 +94,6 @@ func setup6(args ...string) (handler.Handler6, error) {
 		return nil, err
 	}
 
-	if len(inventory) == 0 {
-		log.Errorf("no switches found in inventory")
-		return nil, nil
-	}
-
 	log.Printf("loaded ZTP plugin for DHCPv6.")
 	return handler6, nil
 }
@@ -125,6 +120,11 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 
 	if !m.IsOptionRequested(optionZTPCode) {
 		log.Debug("No ZTP option requested")
+		return resp, false
+	}
+
+	if len(inventory) == 0 {
+		log.Debug("No switches in inventory, nothing to do")
 		return resp, false
 	}
 
