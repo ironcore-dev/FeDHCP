@@ -73,6 +73,44 @@ var _ = Describe("Endpoint", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("Setup6 should return a non-nil handler for an empty hosts config", func() {
+		data := api.MetalConfig{
+			Inventories: []api.Inventory{},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), inventoryConfigFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		h6, err := setup6(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h6).NotTo(BeNil())
+	})
+
+	It("Setup4 should return a non-nil handler for an empty hosts config", func() {
+		data := api.MetalConfig{
+			Inventories: []api.Inventory{},
+		}
+		configData, err := yaml.Marshal(data)
+		Expect(err).NotTo(HaveOccurred())
+
+		file, err := os.CreateTemp(GinkgoT().TempDir(), inventoryConfigFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+		h4, err := setup4(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h4).NotTo(BeNil())
+	})
+
 	It("Should return an empty inventory for an empty list", func() {
 		configFile := inventoryConfigFile
 		data := api.MetalConfig{

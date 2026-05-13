@@ -10,6 +10,8 @@ import (
 	"github.com/mdlayher/netx/eui64"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/ironcore-dev/fedhcp/internal/api"
+	"gopkg.in/yaml.v3"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,6 +36,29 @@ var _ = Describe("ZTP Plugin", func() {
 
 			_, err = loadConfig(file.Name())
 			Expect(err).To(HaveOccurred())
+		})
+
+		It("Setup6 should return a non-nil handler for an empty switches config", func() {
+			oldInventory := inventory
+			defer func() { inventory = oldInventory }()
+			inventory = nil
+
+			config := &api.ZTPConfig{
+				Switches: []api.Switch{},
+			}
+			configData, err := yaml.Marshal(config)
+			Expect(err).NotTo(HaveOccurred())
+
+			file, err := os.CreateTemp(GinkgoT().TempDir(), testConfigPath)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = file.Close()
+			}()
+			Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+			h6, err := setup6(file.Name())
+			Expect(err).NotTo(HaveOccurred())
+			Expect(h6).NotTo(BeNil())
 		})
 	})
 
