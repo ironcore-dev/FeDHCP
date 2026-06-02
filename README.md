@@ -266,4 +266,6 @@ Addresses are leased as [non temporary IPv6 addresses](https://datatracker.ietf.
 - the relay's `LinkAddr` must be a valid `/80` prefix (bytes 10-15 must be zero)
 
 # License
-`FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2024 by *coredhcp* and the *FeDHCP* authors.
+`FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2026 by *coredhcp* and the *FeDHCP* authors.
+
+<p align="center"><img alt="Bundesministerium für Wirtschaft und Energie (BMWE)-EU funding logo" src="https://apeirora.eu/assets/img/BMWK-EU.png" width="400"/></p>
