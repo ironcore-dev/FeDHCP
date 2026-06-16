@@ -6,18 +6,18 @@ require (
 	github.com/coredhcp/coredhcp v0.0.0-20250927164030-d2ed887fca9b
 	github.com/google/addlicense v1.2.0
 	github.com/insomniacslk/dhcp v0.0.0-20251020182700-175e84fbb167
-	github.com/ironcore-dev/controller-utils v0.11.0
+	github.com/ironcore-dev/controller-utils v0.12.0
 	github.com/ironcore-dev/ipam v0.2.4
-	github.com/ironcore-dev/metal-operator v0.5.0
+	github.com/ironcore-dev/metal-operator v0.5.1
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
-	github.com/onsi/ginkgo/v2 v2.29.0
-	github.com/onsi/gomega v1.41.0
+	github.com/onsi/ginkgo/v2 v2.31.0
+	github.com/onsi/gomega v1.42.0
 	github.com/sirupsen/logrus v1.9.4
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.36.1
-	k8s.io/apimachinery v0.36.1
-	k8s.io/client-go v0.36.1
+	k8s.io/api v0.36.2
+	k8s.io/apimachinery v0.36.2
+	k8s.io/client-go v0.36.2
 	sigs.k8s.io/controller-runtime v0.24.1
 )
 
