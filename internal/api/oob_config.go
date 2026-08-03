@@ -11,4 +11,5 @@ type SubnetLabel struct {
 type OOBConfig struct {
 	Namespace    string        `yaml:"namespace"`
 	SubnetLabels []SubnetLabel `yaml:"subnetLabels"`
+	LeaseTimes   LeaseTimes    `yaml:"leaseTimes"`
 }

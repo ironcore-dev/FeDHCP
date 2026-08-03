@@ -5,10 +5,13 @@ package stateless
 
 import (
 	"net"
+	"os"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/ironcore-dev/fedhcp/internal/api"
 )
 
 var expectedIAID = [4]byte{1, 2, 3, 4}
@@ -25,6 +28,11 @@ func TestBuildAddressFromMAC(t *testing.T) {
 }
 
 func TestHandler6_PrefixLength80(t *testing.T) {
+	// resolve default lease times (no config file -> 24h/24h)
+	if err := loadConfig(); err != nil {
+		t.Fatalf("failed to load default config: %v", err)
+	}
+
 	req, err := dhcpv6.NewMessage()
 	if err != nil {
 		t.Fatal(err)
@@ -71,11 +79,39 @@ func TestHandler6_PrefixLength80(t *testing.T) {
 
 	preferred := iana.Options.Options[0].(*dhcpv6.OptIAAddress).PreferredLifetime
 	valid := iana.Options.Options[0].(*dhcpv6.OptIAAddress).ValidLifetime
-	if preferred != preferredLifeTime {
-		t.Errorf("expected preferred lifetime %v, got %v", preferredLifeTime, preferred)
+	if preferred != api.DefaultLeaseTime {
+		t.Errorf("expected preferred lifetime %v, got %v", api.DefaultLeaseTime, preferred)
 	}
-	if valid != validLifeTime {
-		t.Errorf("expected valid lifetime %v, got %v", validLifeTime, valid)
+	if valid != api.DefaultLeaseTime {
+		t.Errorf("expected valid lifetime %v, got %v", api.DefaultLeaseTime, valid)
+	}
+}
+
+func TestHandler6_ConfigurableLeaseTimes(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/stateless_config.yaml"
+	cfgData := []byte("leaseTimes:\n  preferredLifetime: 1h\n  validLifetime: 2h\n")
+	if err := os.WriteFile(cfgPath, cfgData, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadConfig(cfgPath); err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if preferredLifeTime != time.Hour || validLifeTime != 2*time.Hour {
+		t.Fatalf("expected preferred 1h / valid 2h, got preferred %v / valid %v", preferredLifeTime, validLifeTime)
+	}
+}
+
+func TestHandler6_RejectPreferredGreaterThanValid(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/stateless_config.yaml"
+	// preferred (2h) exceeds valid (1h) -> must be rejected at setup
+	cfgData := []byte("leaseTimes:\n  preferredLifetime: 2h\n  validLifetime: 1h\n")
+	if err := os.WriteFile(cfgPath, cfgData, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadConfig(cfgPath); err == nil {
+		t.Fatal("expected error for preferredLifetime > validLifetime, got nil")
 	}
 }
 

@@ -1,0 +1,4 @@
+# Lease times are optional; both default to 24h when omitted.
+leaseTimes:
+  preferredLifetime: 24h
+  validLifetime: 24h
