@@ -1,6 +1,8 @@
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.9.0 AS xx
 FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 
-ARG GOARCH=''
+COPY --from=xx / /
+RUN apt-get update && apt-get install -y --no-install-recommends clang lld
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -17,12 +19,19 @@ COPY plugins/ plugins/
 COPY internal/ internal/
 COPY api/ api/
 
+ARG TARGETPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
 
+# See:
+# - https://github.com/tonistiigi/xx#xx-apk-xx-apt-xx-apt-get---installing-packages-for-target-architecture
+# - https://github.com/tonistiigi/xx#go--cgo
+# - https://github.com/tonistiigi/xx#xx-verify---verifying-compilation-results
+RUN xx-apt-get install -y --no-install-recommends gcc libc6-dev
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-    CGO_ENABLED=1 GOOS=$TARGETOS GOARCH=$TARGETARCH GO111MODULE=on go build -a -o fedhcp main.go
+    CGO_ENABLED=1 xx-go build -a -o fedhcp main.go \
+    && xx-verify fedhcp
 
 FROM debian:stable AS installer
 
@@ -48,6 +57,7 @@ WORKDIR /
 COPY --from=builder /workspace/fedhcp .
 COPY --from=installer /sbin/setcap /sbin/setcap
 COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/libcap.so.2 /lib/${LIB_DIR_PREFIX}-linux-gnu/libcap.so.2
+COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/libgcc_s.so.1 /lib/${LIB_DIR_PREFIX}-linux-gnu/libgcc_s.so.1
 COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/libc.so.6 /lib/${LIB_DIR_PREFIX}-linux-gnu/libc.so.6
 COPY --from=installer /lib/${LIB_DIR_PREFIX}-linux-gnu/${LINKER} /lib/${LIB_DIR_PREFIX}-linux-gnu/${LINKER}
 COPY --from=installer /bin/sh /bin/sh
