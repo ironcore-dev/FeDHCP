@@ -115,6 +115,28 @@ func TestHandler6_RejectPreferredGreaterThanValid(t *testing.T) {
 	}
 }
 
+func TestHandler6_RejectNegativeLifetime(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		yaml string
+	}{
+		{"negative preferred", "leaseTimes:\n  preferredLifetime: -1h\n  validLifetime: 1h\n"},
+		{"negative valid", "leaseTimes:\n  preferredLifetime: 1h\n  validLifetime: -1h\n"},
+		{"both negative", "leaseTimes:\n  preferredLifetime: -1h\n  validLifetime: -1h\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := dir + "/stateless_config.yaml"
+			if err := os.WriteFile(cfgPath, []byte(tc.yaml), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := loadConfig(cfgPath); err == nil {
+				t.Fatalf("expected error for %s, got nil", tc.name)
+			}
+		})
+	}
+}
+
 func TestHandler6_NoIANA(t *testing.T) {
 	req, err := dhcpv6.NewMessage()
 	if err != nil {

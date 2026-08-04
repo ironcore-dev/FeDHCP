@@ -36,11 +36,16 @@ func (l LeaseTimes) Resolve() (preferred, valid time.Duration) {
 	return preferred, valid
 }
 
-// Validate checks the resolved lifetimes. Per RFC 8415, the preferred lifetime
-// must not exceed the valid lifetime.
+// Validate checks the resolved lifetimes. Both must be positive, and per
+// RFC 8415 the preferred lifetime must not exceed the valid lifetime.
 func (l LeaseTimes) Validate() error {
 	preferred, valid := l.Resolve()
-	if preferred > valid {
+	switch {
+	case preferred <= 0:
+		return fmt.Errorf("preferredLifetime must be positive, got %s", preferred)
+	case valid <= 0:
+		return fmt.Errorf("validLifetime must be positive, got %s", valid)
+	case preferred > valid:
 		return fmt.Errorf("preferredLifetime (%s) must not exceed validLifetime (%s)", preferred, valid)
 	}
 	return nil
