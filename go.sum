@@ -101,8 +101,8 @@ github.com/ironcore-dev/controller-utils v0.14.0 h1:ZRKcTKHxj8xNJDX1t225YoCTykw7
 github.com/ironcore-dev/controller-utils v0.14.0/go.mod h1:r0ANgOsXV7Xo+V8z93frNJMnZdE1ZWc9j2djOKWEigA=
 github.com/ironcore-dev/ipam v0.2.4 h1:8dEbvggTmLfZFykhyBCPdN6oAQvHfnWPFM5p9Y2WqOc=
 github.com/ironcore-dev/ipam v0.2.4/go.mod h1:p5+URcAMcCEcYnNjPCnzu7btQcejU8veEZDFbkaTcps=
-github.com/ironcore-dev/metal-operator v0.7.1 h1:QDopLB9iyoYrGedSdvrH+pHvhpeh9zHsoWBcES2afj8=
-github.com/ironcore-dev/metal-operator v0.7.1/go.mod h1:w/5EARm3bN+ZwWL5Bsiq734c4UkQZczsiopRvdvMM4A=
+github.com/ironcore-dev/metal-operator v0.6.2 h1:flCmh+DPSgigb/cK/bk5b7Wsgo7CdAJUBrg16vhrzNg=
+github.com/ironcore-dev/metal-operator v0.6.2/go.mod h1:9IQIS74J+RFsQvX096MwCx+HGMJXiPWwO5Zds7V8N4U=
 github.com/josharian/native v1.1.0 h1:uuaP0hAbW7Y4l0ZRQ6C9zfb7Mg1mbFKry/xzDAfmtLA=
 github.com/josharian/native v1.1.0/go.mod h1:7X/raswPFr05uY3HiLlYeyQntB6OO7E/d2Cu7qoaN2w=
 github.com/joshdk/go-junit v1.0.0 h1:S86cUKIdwBHWwA6xCmFlf3RTLfVXYQfvanM5Uh+K6GE=
