@@ -244,6 +244,43 @@ var _ = Describe("Endpoint", func() {
 		DeferCleanup(k8sClient.Delete, endpoint)
 	})
 
+	It("Should update an existing endpoint with a stale IP address for IPv6 DHCP request from a known machine", func(ctx SpecContext) {
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+		ip := net.ParseIP(linkLocalIPV6Prefix)
+		linkLocalIPV6Addr, _ := eui64.ParseMAC(ip, mac)
+
+		By("Creating an existing endpoint with a stale IP address")
+		staleEndpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+			Spec: metalv1alpha1.EndpointSpec{
+				MACAddress: machineWithIPAddressMACAddress,
+				IP:         metalv1alpha1.MustParseIP("fe80::1"),
+			},
+		}
+		Expect(k8sClient.Create(ctx, staleEndpoint)).To(Succeed())
+		DeferCleanup(k8sClient.Delete, staleEndpoint)
+
+		req, _ := dhcpv6.NewMessage()
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, linkLocalIPV6Addr)
+
+		stub := dhcpv6ResponseWithIANA(linkLocalIPV6Addr)
+		_, _ = handler6(relayedRequest, stub)
+
+		endpoint := &metalv1alpha1.Endpoint{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: machineWithIPAddressName,
+			},
+		}
+
+		By("Ensuring the existing endpoint IP address is updated to the one from the DHCP response")
+		Eventually(Object(endpoint)).Should(SatisfyAll(
+			HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+			HaveField("Spec.IP", metalv1alpha1.MustParseIP(linkLocalIPV6Addr.String()))))
+	})
+
 	It("Should create an endpoint for IPv6 DHCP request from a known MAC prefix with IP address", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
 		ip := net.ParseIP(linkLocalIPV6Prefix)
