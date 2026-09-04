@@ -31,6 +31,10 @@ linters:
           - dupl
           - lll
         path: internal/*
+      # The Endpoint resource is deprecated.
+      - linters:
+          - staticcheck
+        text: "SA1019.*metalv1alpha1\\.Endpoint"
     paths:
       - third_party$
       - builtin$
