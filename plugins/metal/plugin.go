@@ -257,7 +257,11 @@ func ApplyEndpointForInventory(ctx context.Context, name string, mac net.Hardwar
 				IP:         metalv1alpha1.MustParseIP(ip.String()),
 			},
 		}
-		if _, err := controllerutil.CreateOrPatch(ctx, cl, endpoint, nil); err != nil {
+		if _, err := controllerutil.CreateOrPatch(ctx, cl, endpoint, func() error {
+			endpoint.Spec.MACAddress = mac.String()
+			endpoint.Spec.IP = metalv1alpha1.MustParseIP(ip.String())
+			return nil
+		}); err != nil {
 			return fmt.Errorf("failed to apply endpoint: %v", err)
 		}
 	case OnboardingStrategyDynamic:
