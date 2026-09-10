@@ -4,7 +4,8 @@
 package api
 
 type ZTPConfig struct {
-	Switches []Switch `yaml:"switches"`
+	ProvisioningScriptAddress string   `yaml:"provisioningScriptAddress"`
+	Switches                  []Switch `yaml:"switches"`
 }
 
 type Switch struct {

@@ -24,8 +24,10 @@ const (
 	consistentlyDuration          = 1 * time.Second
 	testConfigPath                = "config.yaml"
 	testZtpProvisioningScriptPath = "https://[2001:db8::1]/ztp/provisioning.sh"
+	testZtpOverrideScriptPath     = "https://[2001:db8::1]/ztp/provision-override.sh"
 	linkLocalIPV6Prefix           = "fe80::"
 	inventoryMAC                  = "00:11:22:33:44:55"
+	inventoryMACWithOverride      = "00:11:22:33:44:66"
 	nonInventoryMAC               = "47:11:47:11:47:11"
 )
 
@@ -45,11 +47,16 @@ var _ = BeforeSuite(func() {
 
 	configFile := testConfigPath
 	config := &api.ZTPConfig{
+		ProvisioningScriptAddress: testZtpProvisioningScriptPath,
 		Switches: []api.Switch{
 			{
-				MacAddress:                inventoryMAC,
-				ProvisioningScriptAddress: testZtpProvisioningScriptPath,
-				Name:                      "test-switch",
+				MacAddress: inventoryMAC,
+				Name:       "test-switch",
+			},
+			{
+				MacAddress:                inventoryMACWithOverride,
+				ProvisioningScriptAddress: testZtpOverrideScriptPath,
+				Name:                      "test-switch-override",
 			},
 		},
 	}
@@ -65,5 +72,5 @@ var _ = BeforeSuite(func() {
 
 	_, err = setup6(file.Name())
 	Expect(err).NotTo(HaveOccurred())
-	Expect(inventory).To(HaveLen(1))
+	Expect(inventory).To(HaveLen(2))
 })
