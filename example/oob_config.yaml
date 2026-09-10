@@ -4,3 +4,7 @@ subnetLabels:
     value: "true"
   - key: key-2
     value: value-2
+# leaseTimes is optional; both default to 24h when omitted.
+leaseTimes:
+  preferredLifetime: 24h
+  validLifetime: 24h

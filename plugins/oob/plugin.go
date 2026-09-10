@@ -40,10 +40,13 @@ var (
 	k8sClient *K8sClient
 )
 
+var (
+	preferredLifeTime time.Duration
+	validLifeTime     time.Duration
+)
+
 const (
-	UNKNOWN_IP        = "0.0.0.0"
-	preferredLifeTime = 24 * time.Hour
-	validLifeTime     = 24 * time.Hour
+	UNKNOWN_IP = "0.0.0.0"
 )
 
 // args[0] = path to config file
@@ -84,6 +87,12 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
+
+	if err := oobConfig.LeaseTimes.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid lease times: %v", err)
+	}
+	preferredLifeTime, validLifeTime = oobConfig.LeaseTimes.Resolve()
+	log.Infof("Using lease times (preferred %s, valid %s)", preferredLifeTime, validLifeTime)
 
 	log.Print("Loaded oob plugin for DHCPv6.")
 	return handler6, nil
@@ -170,6 +179,12 @@ func setup4(args ...string) (handler.Handler4, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create k8s client: %w", err)
 	}
+
+	if err := oobConfig.LeaseTimes.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid lease times: %v", err)
+	}
+	preferredLifeTime, validLifeTime = oobConfig.LeaseTimes.Resolve()
+	log.Infof("Using lease times (preferred %s, valid %s)", preferredLifeTime, validLifeTime)
 
 	log.Print("Loaded oob plugin for DHCPv4.")
 	return handler4, nil
