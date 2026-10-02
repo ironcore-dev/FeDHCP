@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/coredhcp/coredhcp/logger"
+	"github.com/go-logr/logr/funcr"
 	"github.com/sirupsen/logrus"
 
 	"github.com/coredhcp/coredhcp/config"
@@ -45,6 +46,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/stateless"
 	"github.com/ironcore-dev/fedhcp/plugins/ztp"
 	"k8s.io/apimachinery/pkg/util/sets"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var desiredPlugins = []*plugins.Plugin{
@@ -108,6 +110,11 @@ func main() {
 		os.Exit(1)
 	}
 	log.Logger.SetLevel(level)
+
+	// route controller-runtime logs (e.g. API warnings) through the coredhcp logger
+	ctrl.SetLogger(funcr.New(func(_, args string) {
+		log.Infoln(args)
+	}, funcr.Options{}))
 
 	cfg, err := config.Load(configFile)
 	if err != nil {
