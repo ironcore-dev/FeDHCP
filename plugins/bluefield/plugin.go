@@ -112,7 +112,12 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 					return nil, true
 				}
 			}
-			releaseOptIANA(resp, m.Options.OneIANA().IaId, m.Options.OneIANA().Options.Addresses()[0].IPv6Addr)
+			// a release without address has no binding, see releaseOptIANA
+			var clientIP net.IP
+			if addr := m.Options.OneIANA().Options.OneAddress(); addr != nil {
+				clientIP = addr.IPv6Addr
+			}
+			releaseOptIANA(resp, m.Options.OneIANA().IaId, clientIP)
 			return resp, true
 		}
 	}
