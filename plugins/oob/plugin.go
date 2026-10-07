@@ -111,6 +111,13 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return nil, true
 	}
 
+	// decapsulate before allocating an IP, a malformed request must not allocate anything
+	m, err := req.GetInnerMessage()
+	if err != nil {
+		log.Errorf("Could not decapsulate request: %v", err)
+		return nil, true
+	}
+
 	ipaddr := make(net.IP, len(relayMsg.LinkAddr))
 	copy(ipaddr, relayMsg.LinkAddr)
 
@@ -121,13 +128,6 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	leaseIP, err := k8sClient.getIp(ctx, ipaddr, mac, false, ipamv1alpha1.IPv6SubnetType)
 	if err != nil {
 		log.Errorf("Could not get IPAM IP: %s", err)
-		return nil, true
-	}
-
-	var m *dhcpv6.Message
-	m, err = req.GetInnerMessage()
-	if err != nil {
-		log.Errorf("BUG: could not decapsulate: %v", err)
 		return nil, true
 	}
 

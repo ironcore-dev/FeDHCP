@@ -115,6 +115,22 @@ var _ = Describe("OOB Plugin", func() {
 		Expect(breakChain).To(BeTrue())
 	})
 
+	It("Should return and break plugin chain without creating an IP, if the relayed request cannot be decapsulated", func() {
+		// relay message without an encapsulated message
+		relayedRequest := &dhcpv6.RelayMessage{
+			MessageType: dhcpv6.MessageTypeRelayForward,
+			LinkAddr:    net.ParseIP(relayIPV6Address),
+			PeerAddr:    linkLocalAddress(clientMACAddress),
+		}
+
+		resp, breakChain := handler6(relayedRequest, newReply6())
+		Expect(resp).To(BeNil())
+		Expect(breakChain).To(BeTrue())
+
+		ipList := &ipamv1alpha1.IPList{}
+		Consistently(ObjectList(ipList, client.InNamespace(ns.Name))).Should(HaveField("Items", BeEmpty()))
+	})
+
 	It("Should create an IP and lease it for a relayed IPv6 DHCP request", func() {
 		relayedRequest := newRelayedRequest(relayIPV6Address, clientMACAddress, true)
 
