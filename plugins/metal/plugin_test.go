@@ -73,6 +73,18 @@ var _ = Describe("Endpoint", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("Setup6 should return error if config file is invalid", func() {
+		file, err := os.CreateTemp(GinkgoT().TempDir(), inventoryConfigFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), []byte("Invalid YAML"), 0644)).To(Succeed())
+
+		_, err = setup6(file.Name())
+		Expect(err).To(HaveOccurred())
+	})
+
 	It("Setup6 should return a non-nil handler for an empty hosts config", func() {
 		data := api.MetalConfig{
 			Inventories: []api.Inventory{},
@@ -500,6 +512,77 @@ var _ = Describe("Endpoint", func() {
 			Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 		})
 
+	It("Should not create a second endpoint for a repeated IPv4 DHCP request from a known MAC prefix", func(ctx SpecContext) {
+		useDynamicInventory()
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+
+		for range 2 {
+			req, _ := dhcpv4.NewDiscovery(mac)
+			stub, _ := dhcpv4.NewReplyFromRequest(req)
+			stub.YourIPAddr = net.ParseIP(privateIPV4Address)
+			_, breakChain := handler4(req, stub)
+			Expect(breakChain).To(BeFalse())
+		}
+
+		epList := &metalv1alpha1.EndpointList{}
+		Eventually(ObjectList(epList)).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(SatisfyAll(
+				HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+				HaveField("Spec.IP", metalv1alpha1.MustParseIP(privateIPV4Address)),
+			))),
+		))
+		DeferCleanup(k8sClient.Delete, &epList.Items[0])
+	})
+
+	It("Should update the endpoint IP address for an IPv4 DHCP request from a known MAC prefix with a new IP address", func(ctx SpecContext) {
+		useDynamicInventory()
+		mac, _ := net.ParseMAC(machineWithIPAddressMACAddress)
+
+		for _, ip := range []string{privateIPV4Address, "192.168.47.12"} {
+			req, _ := dhcpv4.NewDiscovery(mac)
+			stub, _ := dhcpv4.NewReplyFromRequest(req)
+			stub.YourIPAddr = net.ParseIP(ip)
+			_, breakChain := handler4(req, stub)
+			Expect(breakChain).To(BeFalse())
+		}
+
+		epList := &metalv1alpha1.EndpointList{}
+		Eventually(ObjectList(epList)).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(SatisfyAll(
+				HaveField("Spec.MACAddress", machineWithIPAddressMACAddress),
+				HaveField("Spec.IP", metalv1alpha1.MustParseIP("192.168.47.12")),
+			))),
+		))
+		DeferCleanup(k8sClient.Delete, &epList.Items[0])
+	})
+
+	It("Should not create an endpoint for IPv4 DHCP request from a MAC not matching a known MAC prefix", func(ctx SpecContext) {
+		useDynamicInventory()
+		mac, _ := net.ParseMAC(unknownMachineMACAddress)
+
+		req, _ := dhcpv4.NewDiscovery(mac)
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+		stub.YourIPAddr = net.ParseIP(privateIPV4Address)
+		_, breakChain := handler4(req, stub)
+		Expect(breakChain).To(BeFalse())
+
+		epList := &metalv1alpha1.EndpointList{}
+		Eventually(ObjectList(epList)).Should(HaveField("Items", BeEmpty()))
+	})
+
+	It("Should return and break plugin chain, if the MAC address cannot be determined from an IPv6 DHCP request", func(ctx SpecContext) {
+		req, _ := dhcpv6.NewMessage()
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, _ := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.ParseIP("192.0.2.1"))
+
+		stub := dhcpv6ResponseWithIANA(net.ParseIP("2001:db8::1"))
+		resp, breakChain := handler6(relayedRequest, stub)
+		Expect(resp).To(BeNil())
+		Expect(breakChain).To(BeTrue())
+	})
+
 	It("Should not create an endpoint for IPv4 DHCP request from a unknown machine", func(ctx SpecContext) {
 		mac, _ := net.ParseMAC(unknownMachineMACAddress)
 
@@ -517,3 +600,25 @@ var _ = Describe("Endpoint", func() {
 		Eventually(Get(endpoint)).Should(Satisfy(apierrors.IsNotFound))
 	})
 })
+
+// useDynamicInventory switches the plugin to MAC prefix onboarding (filter only, no static hosts).
+func useDynamicInventory() {
+	data := api.MetalConfig{
+		Filter: api.Filter{
+			MacPrefix: []string{machineWithIPAddressMACAddressPrefFilter},
+		},
+	}
+	configData, err := yaml.Marshal(data)
+	Expect(err).NotTo(HaveOccurred())
+
+	file, err := os.CreateTemp(GinkgoT().TempDir(), inventoryConfigFile)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		_ = file.Close()
+	}()
+	Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+	inventory, err = loadConfig(file.Name())
+	Expect(err).NotTo(HaveOccurred())
+	Expect(inventory.Strategy).To(Equal(OnboardingStrategyDynamic))
+}
