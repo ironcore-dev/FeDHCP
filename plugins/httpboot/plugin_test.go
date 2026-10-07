@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -102,6 +104,29 @@ func createTempConfig(config api.HttpBootConfig, tempDir string) (string, error)
 	return configFile, nil
 }
 
+func TestMain(m *testing.M) {
+	// the boot service mock is used by all client-specific tests, independent of their order
+	go startBootServiceMock()
+	if err := waitForBootServiceMock(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	os.Exit(m.Run())
+}
+
+func waitForBootServiceMock() error {
+	address := fmt.Sprintf("[::1]:%d", bootServicePort)
+	for range 50 {
+		conn, err := net.DialTimeout("tcp", address, 100*time.Millisecond)
+		if err == nil {
+			return conn.Close()
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("boot service mock not reachable on %s", address)
+}
+
 /* parametrization */
 
 func TestWrongNumberArgs(t *testing.T) {
@@ -119,7 +144,10 @@ func TestWrongNumberArgs(t *testing.T) {
 func TestWrongArgs(t *testing.T) {
 	malformedBootURL := []string{"ftp://www.example.com/boot.uki",
 		"tftp:/www.example.com/boot.uki",
-		"foobar:/www.example.com/boot.uki"}
+		"foobar:/www.example.com/boot.uki",
+		"https://[2001:db8::1/boot.uki", // unparsable
+		"https://[2001:db8::1]",         // no path
+	}
 	for _, wrongURL := range malformedBootURL {
 		malformedConfig := &api.HttpBootConfig{
 			BootFile:       wrongURL,
@@ -137,7 +165,96 @@ func TestWrongArgs(t *testing.T) {
 	}
 }
 
+func TestInvalidConfig(t *testing.T) {
+	invalidConfigFile := t.TempDir() + "/config.yaml"
+	if err := os.WriteFile(invalidConfigFile, []byte("Invalid YAML"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, configFile := range []string{"does-not-exist.yaml", invalidConfigFile} {
+		if _, err := setup4(configFile); err == nil {
+			t.Errorf("no error occurred in setup4 for config file %s, but it should have", configFile)
+		}
+		if _, err := setup6(configFile); err == nil {
+			t.Errorf("no error occurred in setup6 for config file %s, but it should have", configFile)
+		}
+	}
+}
+
 /* IPv6 */
+func TestPXEClientVendorClass6(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = Init6(*genericConfig, tempDir)
+
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optVendorClass := dhcpv6.OptVendorClass{}
+	buf := []byte{
+		0, 0, 5, 57, // nice "random" enterprise number, can be ignored
+		0, 9, // length ot vendor class
+		'P', 'X', 'E', 'C', 'l', 'i', 'e', 'n', 't', // vendor class
+	}
+	_ = optVendorClass.FromBytes(buf)
+	req.UpdateOption(&optVendorClass)
+
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward, net.IPv6loopback, net.IPv6loopback)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(relayedRequest, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+
+	// PXE clients are served by the pxeboot plugin
+	if opts := resp.GetOption(dhcpv6.OptionBootfileURL); len(opts) != optionDisabled {
+		t.Errorf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+	if opts := resp.GetOption(dhcpv6.OptionVendorClass); len(opts) != optionDisabled {
+		t.Errorf("Expected %d VendorClass option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+}
+
+func TestNoInnerMessage6(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = Init6(*genericConfig, tempDir)
+
+	// relay message without an encapsulated message
+	relayedRequest := &dhcpv6.RelayMessage{
+		MessageType: dhcpv6.MessageTypeRelayForward,
+		LinkAddr:    net.IPv6loopback,
+		PeerAddr:    net.IPv6loopback,
+	}
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(relayedRequest, stub)
+	if resp != nil {
+		t.Errorf("plugin should not return a message, got %v", resp)
+	}
+	if !stop {
+		t.Error("plugin did not interrupt processing, but it should have")
+	}
+}
+
 func TestGenericHTTPBootRequested6(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = Init6(*genericConfig, tempDir)
@@ -512,9 +629,6 @@ func TestHTTPBootNotRequested4(t *testing.T) {
 
 /* client-specific tests */
 func TestCustomHTTPBootRequestedKnownIP(t *testing.T) {
-	go startBootServiceMock()
-	time.Sleep(time.Second * 1)
-
 	ip := net.ParseIP(knownClientIP)
 	relayedRequest, err := createHTTPBootRequest(t, ip)
 	if err != nil {
@@ -728,6 +842,166 @@ func TestCustomHTTPBootWithYourIPAddr4(t *testing.T) {
 	if ci != string(expectedHTTPClient) {
 		t.Errorf("Found ClassIdentifier %s, expected %s", ci, string(expectedHTTPClient))
 	}
+}
+
+/* client-specific boot service failures */
+
+// bootServiceFailures are boot service misbehaviours, which must not result in a boot file being
+// handed out, but must neither drop the request nor break the plugin chain.
+var bootServiceFailures = []struct {
+	name    string
+	handler http.HandlerFunc
+	stopped bool
+}{
+	{
+		name: "boot service returns an error",
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		},
+	},
+	{
+		name: "boot service returns invalid JSON",
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("not JSON"))
+		},
+	},
+	{
+		name: "boot service returns an empty UKI URL",
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"UKIURL": ""}`))
+		},
+	},
+	{
+		name:    "boot service is not reachable",
+		stopped: true,
+	},
+}
+
+// startBootService starts a boot service with the given handler and returns a client-specific config for it.
+func startBootService(t *testing.T, handler http.HandlerFunc, stopped bool) api.HttpBootConfig {
+	if handler == nil {
+		handler = func(w http.ResponseWriter, r *http.Request) {}
+	}
+	server := httptest.NewServer(handler)
+	if stopped {
+		server.Close()
+	} else {
+		t.Cleanup(server.Close)
+	}
+
+	return api.HttpBootConfig{
+		BootFile:       server.URL + "/httpboot",
+		ClientSpecific: true,
+	}
+}
+
+func TestBootServiceFailures6(t *testing.T) {
+	for _, tt := range bootServiceFailures {
+		t.Run(tt.name, func(t *testing.T) {
+			relayedRequest, err := createHTTPBootRequest(t, net.ParseIP(knownClientIP))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// after createHTTPBootRequest, which sets up the plugin with the default boot service mock
+			if err := Init6(startBootService(t, tt.handler, tt.stopped), t.TempDir()); err != nil {
+				t.Fatal(err)
+			}
+			relayedRequest.AddOption(dhcpv6.OptClientLinkLayerAddress(iana.HWTypeEthernet, mustParseMAC(t, knownClientMAC)))
+
+			stub, err := dhcpv6.NewMessage()
+			if err != nil {
+				t.Fatal(err)
+			}
+			stub.MessageType = dhcpv6.MessageTypeReply
+
+			resp, stop := handler6(relayedRequest, stub)
+			if resp != stub {
+				t.Fatalf("plugin should return the unchanged response, got %v", resp)
+			}
+			if stop {
+				t.Error("plugin interrupted processing, but it shouldn't have")
+			}
+			if opts := resp.GetOption(dhcpv6.OptionBootfileURL); len(opts) != optionDisabled {
+				t.Errorf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
+			}
+		})
+	}
+}
+
+func TestBootServiceFailures4(t *testing.T) {
+	for _, tt := range bootServiceFailures {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := Init4(startBootService(t, tt.handler, tt.stopped), t.TempDir()); err != nil {
+				t.Fatal(err)
+			}
+
+			req, err := dhcpv4.NewDiscovery(mustParseMAC(t, knownClientMAC),
+				dhcpv4.WithRequestedOptions(dhcpv4.OptionClassIdentifier))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.UpdateOption(dhcpv4.OptClassIdentifier("HTTPClient"))
+
+			stub, err := dhcpv4.NewReplyFromRequest(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			resp, stop := handler4(req, stub)
+			if resp != stub {
+				t.Fatalf("plugin should return the unchanged response, got %v", resp)
+			}
+			if stop {
+				t.Error("plugin interrupted processing, but it shouldn't have")
+			}
+			if bootFileName := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options); bootFileName != "" {
+				t.Errorf("Found BootFileName %s, expected empty", bootFileName)
+			}
+		})
+	}
+}
+
+func TestCustomHTTPBootWithoutClientIdentifiers6(t *testing.T) {
+	// neither an IANA address in the response nor a client link-layer address in the relay message
+	var requests atomic.Int32
+	config := startBootService(t, func(w http.ResponseWriter, r *http.Request) { requests.Add(1) }, false)
+
+	relayedRequest, err := createHTTPBootRequest(t, net.ParseIP(knownClientIP))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// after createHTTPBootRequest, which sets up the plugin with the default boot service mock
+	if err := Init6(config, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := handler6(relayedRequest, stub)
+	if resp != stub {
+		t.Fatalf("plugin should return the unchanged response, got %v", resp)
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+	if opts := resp.GetOption(dhcpv6.OptionBootfileURL); len(opts) != optionDisabled {
+		t.Errorf("Expected %d BootFileUrl option, got %d: %v", optionDisabled, len(opts), opts)
+	}
+	if n := requests.Load(); n != 0 {
+		t.Errorf("Expected no request to the boot service, got %d", n)
+	}
+}
+
+func mustParseMAC(t *testing.T, mac string) net.HardwareAddr {
+	hwAddr, err := net.ParseMAC(mac)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hwAddr
 }
 
 func startBootServiceMock() {

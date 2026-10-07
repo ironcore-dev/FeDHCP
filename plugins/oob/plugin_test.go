@@ -247,6 +247,66 @@ var _ = Describe("OOB Plugin", func() {
 		))
 	})
 
+	It("Should skip an OOB subnet without a reserved CIDR", func(ctx SpecContext) {
+		// sorts before the OOB subnet of the default setup, so it is selected first
+		pendingSubnet := &ipamv1alpha1.Subnet{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns.Name,
+				Name:      "a-pending-subnet",
+				Labels:    subnetLabelsMap(oobSubnetLabels),
+			},
+		}
+		Expect(k8sClientTest.Create(ctx, pendingSubnet)).To(Succeed())
+		Eventually(UpdateStatus(pendingSubnet, func() {
+			pendingSubnet.Status.Type = ipamv1alpha1.IPv6SubnetType
+		})).Should(Succeed())
+
+		relayedRequest := newRelayedRequest(relayIPV6Address, clientMACAddress, true)
+		resp, breakChain := handler6(relayedRequest, newReply6())
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).NotTo(BeNil())
+
+		ipList := &ipamv1alpha1.IPList{}
+		Eventually(ObjectList(ipList, client.InNamespace(ns.Name), macLabel(clientMACAddress))).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(HaveField("Spec.Subnet.Name", oobSubnetV6Name))),
+		))
+	})
+
+	It("Should return and break plugin chain, if IPAM does not reserve the IP in time, also for retries", func() {
+		disableFakeIPAM(ns.Name)
+
+		relayedRequest := newRelayedRequest(relayIPV6Address, clientMACAddress, true)
+		for range 2 {
+			resp, breakChain := handler6(relayedRequest, newReply6())
+			Expect(resp).To(BeNil())
+			Expect(breakChain).To(BeTrue())
+		}
+
+		// the pending IP is reused instead of creating another one
+		ipList := &ipamv1alpha1.IPList{}
+		Eventually(ObjectList(ipList, client.InNamespace(ns.Name), macLabel(clientMACAddress))).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(HaveField("Status.Reserved", BeNil()))),
+		))
+	})
+
+	It("Should return and break plugin chain, if the MAC address cannot be determined from an IPv6 DHCP request", func() {
+		req, err := dhcpv6.NewMessage()
+		Expect(err).NotTo(HaveOccurred())
+		req.MessageType = dhcpv6.MessageTypeRequest
+		relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+			net.ParseIP(relayIPV6Address), net.ParseIP("192.0.2.1"))
+		Expect(err).NotTo(HaveOccurred())
+
+		resp, breakChain := handler6(relayedRequest, newReply6())
+		Expect(resp).To(BeNil())
+		Expect(breakChain).To(BeTrue())
+
+		ipList := &ipamv1alpha1.IPList{}
+		Eventually(ObjectList(ipList, client.InNamespace(ns.Name))).Should(HaveField("Items", BeEmpty()))
+	})
+
 	It("Should return and break plugin chain, if the relay is not in an OOB subnet", func() {
 		relayedRequest := newRelayedRequest(unknownIPV6Address, clientMACAddress, true)
 

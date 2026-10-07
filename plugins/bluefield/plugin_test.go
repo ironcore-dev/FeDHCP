@@ -75,6 +75,21 @@ var _ = Describe("Bluefield Plugin", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid IPv6 address"))
 		})
+
+		It("should return an error if less arguments are provided", func() {
+			_, err := setupPlugin()
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return an error if more arguments are provided", func() {
+			_, err := setupPlugin("foo", "bar")
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("should return an error if the configuration file is missing", func() {
+			_, err := setupPlugin("nonexistent.yaml")
+			Expect(err).To(HaveOccurred())
+		})
 	})
 
 	Describe("DHCPv6 Message Handling", func() {
@@ -178,6 +193,53 @@ var _ = Describe("Bluefield Plugin", func() {
 				Expect(respm.Options.OneIANA().T1).To(BeZero())
 				Expect(respm.Options.OneIANA().T2).To(BeZero())
 				Expect(respm.Options.OneIANA().IaId).NotTo(BeNil())
+			})
+		})
+
+		Context("when the server already prepared a response", func() {
+			It("should add the IANA option to the prepared Advertise message", func() {
+				solicit := createSolicitMessage().(*dhcpv6.Message)
+				advertise, err := dhcpv6.NewAdvertiseFromSolicit(solicit)
+				Expect(err).NotTo(HaveOccurred())
+
+				resp, stop := handleDHCPv6(solicit, advertise)
+				Expect(stop).To(BeFalse())
+				Expect(resp).To(BeIdenticalTo(advertise))
+
+				respIANA := advertise.Options.OneIANA()
+				Expect(respIANA).NotTo(BeNil())
+				Expect(respIANA.IaId).To(Equal(solicit.Options.OneIANA().IaId))
+				Expect(respIANA.Options.OneAddress().IPv6Addr.String()).To(Equal(testIP))
+			})
+
+			It("should add the IANA option to the prepared Reply message", func() {
+				request := createRequestMessage().(*dhcpv6.Message)
+				reply, err := dhcpv6.NewReplyFromMessage(request)
+				Expect(err).NotTo(HaveOccurred())
+
+				resp, stop := handleDHCPv6(request, reply)
+				Expect(stop).To(BeFalse())
+				Expect(resp).To(BeIdenticalTo(reply))
+
+				respIANA := reply.Options.OneIANA()
+				Expect(respIANA).NotTo(BeNil())
+				Expect(respIANA.IaId).To(Equal(request.Options.OneIANA().IaId))
+				Expect(respIANA.Options.OneAddress().IPv6Addr.String()).To(Equal(testIP))
+			})
+		})
+
+		Context("when handling malformed messages", func() {
+			It("should break the plugin chain, if a relayed message cannot be decapsulated", func() {
+				// relay message without an encapsulated message
+				req := &dhcpv6.RelayMessage{
+					MessageType: dhcpv6.MessageTypeRelayForward,
+					LinkAddr:    net.ParseIP("2001:db8::ffff"),
+					PeerAddr:    net.ParseIP("fe80::1"),
+				}
+
+				resp, stop := handleDHCPv6(req, nil)
+				Expect(stop).To(BeTrue())
+				Expect(resp).To(BeNil())
 			})
 		})
 

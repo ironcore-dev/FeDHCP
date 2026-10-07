@@ -60,6 +60,38 @@ var _ = Describe("ZTP Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(h6).NotTo(BeNil())
 		})
+
+		It("Setup6 should return error if less arguments are provided", func() {
+			_, err := setup6()
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Setup6 should return error if more arguments are provided", func() {
+			_, err := setup6("foo", "bar")
+			Expect(err).To(HaveOccurred())
+		})
+
+		DescribeTable("Setup6 should return error for a malformed provisioning script address",
+			func(scriptAddress string) {
+				oldInventory := inventory
+				defer func() { inventory = oldInventory }()
+				inventory = nil
+
+				_, err := setup6(writeConfig(&api.ZTPConfig{
+					Switches: []api.Switch{{
+						MacAddress:                inventoryMAC,
+						ProvisioningScriptAddress: scriptAddress,
+						Name:                      "test-switch",
+					}},
+				}))
+				Expect(err).To(HaveOccurred())
+			},
+			Entry("unsupported scheme", "ftp://[2001:db8::1]/ztp/provisioning.sh"),
+			Entry("missing scheme", "[2001:db8::1]/ztp/provisioning.sh"),
+			Entry("missing host", "https:///ztp/provisioning.sh"),
+			Entry("missing path", "https://[2001:db8::1]"),
+			Entry("unparsable URL", "https://[2001:db8::1/ztp/provisioning.sh"),
+		)
 	})
 
 	Describe("DHCPv6 Message Handling", func() {
@@ -110,6 +142,47 @@ var _ = Describe("ZTP Plugin", func() {
 			Expect(opt).To(BeNil())
 		})
 
+		It("should not return provisioning script, if there are no switches in the inventory", func() {
+			oldInventory := inventory
+			defer func() { inventory = oldInventory }()
+			inventory = nil
+
+			req := createRequest(inventoryMAC, true, true)
+			stub := createReply()
+
+			resp, stop := handler6(req, stub)
+			Expect(stop).To(BeFalse())
+			Expect(resp).To(BeIdenticalTo(stub))
+			Expect(resp.GetOneOption(optionZTPCode)).To(BeNil())
+		})
+
+		It("should stop and break the plugin chain, if the relayed message cannot be decapsulated", func() {
+			// relay message without an encapsulated message
+			req := &dhcpv6.RelayMessage{
+				MessageType: dhcpv6.MessageTypeRelayForward,
+				LinkAddr:    net.ParseIP("2001:db8:1111:2222:3333:4444:5555:6666"),
+				PeerAddr:    net.ParseIP(linkLocalIPV6Prefix),
+			}
+
+			resp, stop := handler6(req, createReply())
+			Expect(stop).To(BeTrue())
+			Expect(resp).To(BeNil())
+		})
+
+		It("should stop and break the plugin chain, if the peer address is not an IPv6 address", func() {
+			inner, err := dhcpv6.NewMessage()
+			Expect(err).NotTo(HaveOccurred())
+			inner.MessageType = dhcpv6.MessageTypeRequest
+			inner.AddOption(dhcpv6.OptRequestedOption(optionZTPCode))
+			req, err := dhcpv6.EncapsulateRelay(inner, dhcpv6.MessageTypeRelayForward,
+				net.ParseIP("2001:db8:1111:2222:3333:4444:5555:6666"), net.ParseIP("192.0.2.1"))
+			Expect(err).NotTo(HaveOccurred())
+
+			resp, stop := handler6(req, createReply())
+			Expect(stop).To(BeTrue())
+			Expect(resp).To(BeNil())
+		})
+
 		It("should stop and break the plugin chain for non-relayed messages", func() {
 			req := createRequest("11:22:33:44:55:66", false, false)
 
@@ -154,4 +227,25 @@ func createRequest(mac string, relayed bool, optZTPRequested bool) dhcpv6.DHCPv6
 	}
 
 	return req
+}
+
+func createReply() *dhcpv6.Message {
+	stub, err := dhcpv6.NewMessage()
+	Expect(err).NotTo(HaveOccurred())
+	stub.MessageType = dhcpv6.MessageTypeReply
+	return stub
+}
+
+func writeConfig(config *api.ZTPConfig) string {
+	configData, err := yaml.Marshal(config)
+	Expect(err).NotTo(HaveOccurred())
+
+	file, err := os.CreateTemp(GinkgoT().TempDir(), testConfigPath)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		_ = file.Close()
+	}()
+	Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+	return file.Name()
 }

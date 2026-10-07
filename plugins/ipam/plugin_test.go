@@ -216,6 +216,27 @@ var _ = Describe("IPAM Plugin", func() {
 		))
 	})
 
+	It("Should return and break plugin chain, if IPAM does not reserve the IP in time, without duplicating it on retry", func() {
+		disableFakeIPAM(ns.Name)
+
+		relayedRequest := newRelayedRequest(relayIPV6Address1, clientLinkLocalAddress())
+		resp, breakChain := handler6(relayedRequest, newReply6())
+		Expect(resp).To(BeNil())
+		Expect(breakChain).To(BeTrue())
+
+		// the pending IP is reused instead of creating another one
+		_, _ = handler6(relayedRequest, newReply6())
+
+		ipList := &ipamv1alpha1.IPList{}
+		Eventually(ObjectList(ipList, client.InNamespace(ns.Name), macLabel())).Should(SatisfyAll(
+			HaveField("Items", HaveLen(1)),
+			HaveField("Items", ContainElement(SatisfyAll(
+				HaveField("Spec.IP.Net.String()", "2001:db8:1::11"),
+				HaveField("Status.Reserved", BeNil()),
+			))),
+		))
+	})
+
 	It("Should return and break plugin chain, if the relay is not in any subnet", func() {
 		relayedRequest := newRelayedRequest(unknownIPV6Address, clientLinkLocalAddress())
 
