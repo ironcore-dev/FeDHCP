@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -196,6 +197,15 @@ func createSubnet(ctx context.Context, namespace, name, cidr string) {
 	})).Should(Succeed())
 }
 
+// fakeIPAMDisabledNamespaces contains the namespaces in which the fake IPAM operator does not reserve IPs.
+var fakeIPAMDisabledNamespaces sync.Map
+
+// disableFakeIPAM stops the fake IPAM operator from reserving IPs in the namespace for the current spec.
+func disableFakeIPAM(namespace string) {
+	fakeIPAMDisabledNamespaces.Store(namespace, struct{}{})
+	DeferCleanup(fakeIPAMDisabledNamespaces.Delete, namespace)
+}
+
 // runFakeIPAM emulates the IPAM operator, which is not running in the test environment:
 // every IP without a status gets its requested address reserved and is marked as finished.
 func runFakeIPAM(ctx context.Context) {
@@ -222,6 +232,9 @@ func reconcileIPs(ctx context.Context) {
 
 	for i := range ipList.Items {
 		ip := &ipList.Items[i]
+		if _, disabled := fakeIPAMDisabledNamespaces.Load(ip.Namespace); disabled {
+			continue
+		}
 		// the plugin always requests a specific IP
 		if ip.Status.State != "" || !ip.DeletionTimestamp.IsZero() || ip.Spec.IP == nil {
 			continue
