@@ -109,6 +109,87 @@ func TestWrongNumberArgs(t *testing.T) {
 	}
 }
 
+func TestInvalidConfig(t *testing.T) {
+	invalidConfigFile := t.TempDir() + "/config.yaml"
+	if err := os.WriteFile(invalidConfigFile, []byte("Invalid YAML"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, configFile := range []string{"does-not-exist.yaml", invalidConfigFile} {
+		if _, err := setup4(configFile); err == nil {
+			t.Errorf("no error occurred in setup4 for config file %s, but it should have", configFile)
+		}
+		if _, err := setup6(configFile); err == nil {
+			t.Errorf("no error occurred in setup6 for config file %s, but it should have", configFile)
+		}
+	}
+}
+
+func TestMalformedBootAddresses(t *testing.T) {
+	amd64 := func(addr string) map[api.Arch]string { return map[api.Arch]string{api.AMD64: addr} }
+
+	tests := []struct {
+		name   string
+		config api.PxeBootConfig
+	}{
+		{"unparsable IPv4 iPXE address", api.PxeBootConfig{IPXEAddress: api.Addresses{IPv4: amd64("http://192.168.0.2:port/boot.pxe")}}},
+		{"IPv4 iPXE address with TFTP scheme", api.PxeBootConfig{IPXEAddress: api.Addresses{IPv4: amd64("tftp://192.168.0.2/boot.pxe")}}},
+		{"IPv4 iPXE address without path", api.PxeBootConfig{IPXEAddress: api.Addresses{IPv4: amd64("http://192.168.0.2")}}},
+		{"unparsable IPv4 TFTP address", api.PxeBootConfig{TFTPAddress: api.Addresses{IPv4: amd64("tftp://192.168.0.1:port/amd64.efi")}}},
+		{"IPv4 TFTP address with HTTP scheme", api.PxeBootConfig{TFTPAddress: api.Addresses{IPv4: amd64("http://192.168.0.1/amd64.efi")}}},
+		{"IPv4 TFTP address without file", api.PxeBootConfig{TFTPAddress: api.Addresses{IPv4: amd64("tftp://192.168.0.1/")}}},
+		{"unparsable IPv6 iPXE address", api.PxeBootConfig{IPXEAddress: api.Addresses{IPv6: amd64("http://[2001:db8::2/boot.pxe")}}},
+		{"IPv6 iPXE address with TFTP scheme", api.PxeBootConfig{IPXEAddress: api.Addresses{IPv6: amd64("tftp://[2001:db8::2]/boot.pxe")}}},
+		{"unparsable IPv6 TFTP address", api.PxeBootConfig{TFTPAddress: api.Addresses{IPv6: amd64("tftp://[2001:db8::1/amd64.efi")}}},
+		{"IPv6 TFTP address without host", api.PxeBootConfig{TFTPAddress: api.Addresses{IPv6: amd64("tftp:///amd64.efi")}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			if err := Init4(tt.config, tempDir); err == nil {
+				t.Error("no error occurred in setup4, but it should have")
+			}
+			if err := Init6(tt.config, tempDir, 0); err == nil {
+				t.Error("no error occurred in setup6, but it should have")
+			}
+		})
+	}
+}
+
+func TestPXERequestedUnknownArch6(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 0)
+
+	// iPXE without client architecture, no iPXE address configured for unknown architectures
+	req, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MessageType = dhcpv6.MessageTypeRequest
+	req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionBootfileURL))
+	optUserClass := dhcpv6.OptUserClass{}
+	_ = optUserClass.FromBytes([]byte{0, 4, 'i', 'P', 'X', 'E'})
+	req.UpdateOption(&optUserClass)
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := pxeBootHandler6(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+	if opts := resp.GetOption(dhcpv6.OptionBootfileURL); len(opts) != 0 {
+		t.Errorf("Expected no BootFileUrl option, got %d: %v", len(opts), opts)
+	}
+}
+
 func TestPXERequestedAMD6(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = Init6(*validConfig, tempDir, 1)
@@ -449,6 +530,37 @@ func TestPXERequestedAMD4(t *testing.T) {
 	bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options)
 	if bootFileURL != ipxePathAMD4 {
 		t.Errorf("Found BootFileURL %s, expected %s", bootFileURL, ipxePathAMD4)
+	}
+}
+
+func TestPXERequestedUnknownArch4(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = Init4(*validConfig, tempDir)
+
+	// iPXE without class identifier, no iPXE address configured for unknown architectures
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{
+		0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff},
+		dhcpv4.WithRequestedOptions(dhcpv4.OptionBootfileName),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.UpdateOption(dhcpv4.OptUserClass("iPXE"))
+
+	stub, err := dhcpv4.NewReplyFromRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, stop := pxeBootHandler4(req, stub)
+	if resp == nil {
+		t.Fatal("plugin did not return a message")
+	}
+	if stop {
+		t.Error("plugin interrupted processing, but it shouldn't have")
+	}
+	if bootFileURL := dhcpv4.GetString(dhcpv4.OptionBootfileName, resp.Options); bootFileURL != "" {
+		t.Errorf("Found BootFileURL %s, expected empty", bootFileURL)
 	}
 }
 
