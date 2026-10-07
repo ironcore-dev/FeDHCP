@@ -13,12 +13,19 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/mdlayher/netx/eui64"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Macfilter Plugin", func() {
 	Describe("Configuration Loading", func() {
+		BeforeEach(func() {
+			// a failing setup6 resets the plugin config, which is shared with the other specs
+			config := macFilterConfig
+			DeferCleanup(func() { macFilterConfig = config })
+		})
+
 		It("should return an error if the configuration file is missing", func() {
 			_, err := loadConfig("nonexistent.yaml")
 			Expect(err).To(HaveOccurred())
@@ -37,9 +44,33 @@ var _ = Describe("Macfilter Plugin", func() {
 			_, err = loadConfig(file.Name())
 			Expect(err).To(HaveOccurred())
 		})
+
+		It("should return an error if both allow and deny lists are empty", func() {
+			_, err := setup6(writeConfig(&api.MACFilterConfig{}))
+			Expect(err).To(MatchError(ContainSubstring("both allow and deny lists are empty")))
+		})
+
+		It("Setup6 should return error if less arguments are provided", func() {
+			_, err := setup6()
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Setup6 should return error if more arguments are provided", func() {
+			_, err := setup6("foo", "bar")
+			Expect(err).To(HaveOccurred())
+		})
 	})
 
 	Describe("DHCPv6 Message Handling", func() {
+		BeforeEach(func() {
+			handler, err := setup6(writeConfig(&api.MACFilterConfig{
+				AllowList: []string{allowListMacPrefix},
+				DenyList:  []string{denyListMacPrefix},
+			}))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(handler).NotTo(BeNil())
+		})
+
 		It("should break the chain if MAC address empty", func() {
 			// Create a DUID-LL (Link-Layer Address)
 			duidLL := &dhcpv6.DUIDLL{
@@ -102,6 +133,24 @@ var _ = Describe("Macfilter Plugin", func() {
 			msg.MessageType = dhcpv6.MessageTypeSolicit
 			_, stop := handler6(msg, nil)
 			Expect(stop).To(BeTrue())
+		})
+
+		It("should break the chain if the client ID is malformed", func() {
+			msg, err := dhcpv6.NewMessage()
+			Expect(err).NotTo(HaveOccurred())
+			msg.MessageType = dhcpv6.MessageTypeSolicit
+			// DUID-LLT type without hardware type, time and link layer address
+			msg.AddOption(&dhcpv6.OptionGeneric{OptionCode: dhcpv6.OptionClientID, OptionData: []byte{0, 1}})
+
+			resp, stop := handler6(msg, nil)
+			Expect(stop).To(BeTrue())
+			Expect(resp).To(BeNil())
+		})
+
+		It("should break the chain if the peer address of a relay message is not an IPv6 address", func() {
+			resp, stop := handler6(createRelayMessageWithPeerAddr(net.ParseIP("192.0.2.1")), nil)
+			Expect(stop).To(BeTrue())
+			Expect(resp).To(BeNil())
 		})
 	})
 
@@ -263,13 +312,42 @@ func createMessage(mac string) dhcpv6.DHCPv6 {
 	return req
 }
 
+// createRelayMessage returns a relayed solicit, the MAC address is only encoded in the
+// EUI-64 peer address (the solicit's DUID carries a different MAC).
 func createRelayMessage(mac string) dhcpv6.DHCPv6 {
 	hwaddr, err := net.ParseMAC(mac)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(hwaddr).NotTo(BeNil())
-	req, err := dhcpv6.NewSolicit(hwaddr)
+
+	peerAddr, err := eui64.ParseMAC(net.ParseIP("fe80::"), hwaddr)
+	Expect(err).NotTo(HaveOccurred())
+
+	return createRelayMessageWithPeerAddr(peerAddr)
+}
+
+func createRelayMessageWithPeerAddr(peerAddr net.IP) dhcpv6.DHCPv6 {
+	duidMAC, err := net.ParseMAC(unmatchedMac)
+	Expect(err).NotTo(HaveOccurred())
+	req, err := dhcpv6.NewSolicit(duidMAC)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(req).NotTo(BeNil())
-	req.MessageType = dhcpv6.MessageTypeRelayForward
-	return req
+
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+		net.ParseIP("2001:db8::1"), peerAddr)
+	Expect(err).NotTo(HaveOccurred())
+	return relayedRequest
+}
+
+func writeConfig(config *api.MACFilterConfig) string {
+	configData, err := yaml.Marshal(config)
+	Expect(err).NotTo(HaveOccurred())
+
+	file, err := os.CreateTemp(GinkgoT().TempDir(), testConfigPath)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		_ = file.Close()
+	}()
+	Expect(os.WriteFile(file.Name(), configData, 0644)).To(Succeed())
+
+	return file.Name()
 }
