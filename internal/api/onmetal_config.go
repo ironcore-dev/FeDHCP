@@ -9,4 +9,5 @@ type PrefixDelegation struct {
 
 type OnMetalConfig struct {
 	PrefixDelegation PrefixDelegation `yaml:"prefixDelegation"`
+	LeaseTimes       LeaseTimes       `yaml:"leaseTimes"`
 }

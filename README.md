@@ -18,6 +18,12 @@ The IP address to lease shall be passed as a string in `bluefield_config.yaml` g
 ```yaml
 bluefieldIP: 2001:db8::1
 ```
+The leased address preferred and valid lifetimes default to 24 hours and are optionally configurable:
+```yaml
+leaseTimes:
+  preferredLifetime: 24h
+  validLifetime: 24h
+```
 
 
 ### Notes
@@ -111,6 +117,12 @@ Providing the length in `onmetal_config.yaml` goes as follows:
 prefixDelegation:
   length: 64
 ```
+The leased address preferred and valid lifetimes default to 24 hours and are optionally configurable:
+```yaml
+leaseTimes:
+  preferredLifetime: 24h
+  validLifetime: 24h
+```
 ### Notes
 - supports only IPv6
 - IPv6 relays are mandatory
@@ -130,6 +142,12 @@ subnetLabels:
     value: "true"
   - key: foo
     value: bar
+```
+The leased address preferred and valid lifetimes default to 24 hours and are optionally configurable:
+```yaml
+leaseTimes:
+  preferredLifetime: 24h
+  validLifetime: 24h
 ```
 ### Notes
 - supports both IPv4 and IPv6
@@ -258,7 +276,13 @@ The Stateless plugin derives deterministic IPv6 addresses from DHCPv6 relay mess
 
 For example, given a link address of `2001:db8:1111:2222:3333::` and a MAC of `aa:bb:cc:dd:ee:ff`, the resulting address is `2001:db8:1111:2222:3333:aabb:ccdd:eeff`.
 
-Addresses are leased as [non temporary IPv6 addresses](https://datatracker.ietf.org/doc/html/rfc8415#section-6.2) with a 24-hour lifetime.
+Addresses are leased as [non temporary IPv6 addresses](https://datatracker.ietf.org/doc/html/rfc8415#section-6.2). The preferred and valid lifetimes default to 24 hours and are configurable via an optional config file (`stateless_config.yaml`):
+```yaml
+leaseTimes:
+  preferredLifetime: 24h
+  validLifetime: 24h
+```
+When no config file is provided, the defaults (24h) are used.
 
 ### Notes
 - supports IPv6 only
