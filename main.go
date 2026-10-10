@@ -39,6 +39,7 @@ import (
 	"github.com/ironcore-dev/fedhcp/plugins/macfilter"
 	"github.com/ironcore-dev/fedhcp/plugins/metal"
 	"github.com/ironcore-dev/fedhcp/plugins/ntp"
+	"github.com/ironcore-dev/fedhcp/plugins/onie"
 	"github.com/ironcore-dev/fedhcp/plugins/onmetal"
 	"github.com/ironcore-dev/fedhcp/plugins/oob"
 	"github.com/ironcore-dev/fedhcp/plugins/pxeboot"
@@ -74,6 +75,7 @@ var desiredPlugins = []*plugins.Plugin{
 	&metal.Plugin,
 	&ntp.Plugin,
 	&stateless.Plugin,
+	&onie.Plugin,
 	&ztp.Plugin,
 }
 
