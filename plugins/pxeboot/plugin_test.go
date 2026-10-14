@@ -350,6 +350,32 @@ func TestWrongTFTPRequested6(t *testing.T) {
 	}
 }
 
+func TestNoInnerMessage6(t *testing.T) {
+	tempDir := t.TempDir()
+	_ = Init6(*validConfig, tempDir, 0)
+
+	// relay message without an encapsulated message
+	relayedRequest := &dhcpv6.RelayMessage{
+		MessageType: dhcpv6.MessageTypeRelayForward,
+		LinkAddr:    net.IPv6loopback,
+		PeerAddr:    net.IPv6loopback,
+	}
+
+	stub, err := dhcpv6.NewMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stub.MessageType = dhcpv6.MessageTypeReply
+
+	resp, stop := pxeBootHandler6(relayedRequest, stub)
+	if resp != nil {
+		t.Errorf("plugin should not return a message, got %v", resp)
+	}
+	if !stop {
+		t.Error("plugin did not interrupt processing, but it should have")
+	}
+}
+
 func TestPXENotRequested6(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = Init6(*validConfig, tempDir, 0)

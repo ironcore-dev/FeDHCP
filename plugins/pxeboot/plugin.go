@@ -284,7 +284,7 @@ func pxeBootHandler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 	if err != nil {
 		log.Errorf("Could not decapsulate request: %v", err)
 		// drop the request, this is probably a critical error in the packet.
-		return nil, false
+		return nil, true
 	}
 
 	if decap.IsOptionRequested(dhcpv6.OptionBootfileURL) {
