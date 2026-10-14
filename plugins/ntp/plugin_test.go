@@ -14,78 +14,253 @@ import (
 )
 
 var _ = Describe("NTP Plugin", func() {
-	It("adds NTP v4 option", func() {
-		ntpConfig = &api.NTPConfig{Servers: []net.IP{net.ParseIP("192.0.2.1"), net.ParseIP("1.2.3.4")}}
+	SetupTest()
 
-		req, _ := dhcpv4.New()
-		stub, _ := dhcpv4.New()
-		resp, stop := handler4(req, stub)
-		Expect(stop).NotTo(BeTrue())
-		optNTP := resp.GetOneOption(dhcpv4.OptionNTPServers)
-		optServerAddresses := parseIPv4ListOption(optNTP)
-		Expect(optServerAddresses).To(HaveLen(2))
-		Expect(optServerAddresses[0].String()).To(Equal("192.0.2.1"))
-		Expect(optServerAddresses[1].String()).To(Equal("1.2.3.4"))
+	It("Setup6 should return error if less arguments are provided", func() {
+		_, err := setup6()
+		Expect(err).To(HaveOccurred())
 	})
 
-	It("skips NTP v4 option when not requested", func() {
-		ntpConfig = &api.NTPConfig{Servers: []net.IP{net.ParseIP("192.0.2.1")}}
-
-		req, _ := dhcpv4.New(dhcpv4.WithRequestedOptions(dhcpv4.OptionDomainNameServer))
-		stub, _ := dhcpv4.New()
-		resp, stop := handler4(req, stub)
-		Expect(stop).NotTo(BeTrue())
-		Expect(resp.Options.Get(dhcpv4.OptionNTPServers)).To(BeNil())
+	It("Setup6 should return error if more arguments are provided", func() {
+		_, err := setup6("foo", "bar")
+		Expect(err).To(HaveOccurred())
 	})
 
-	It("adds NTP v6 option", func() {
-		ntpConfig = &api.NTPConfig{
-			ServersV6: []net.IP{net.ParseIP("2001:db8::1"), net.ParseIP("fe80::1337")},
-		}
-
-		req, _ := dhcpv6.NewMessage()
-		req.AddOption(dhcpv6.OptRequestedOption(dhcpv6.OptionNTPServer))
-		stub := &dhcpv6.Message{}
-		resp, stop := handler6(req, stub)
-		Expect(stop).NotTo(BeTrue())
-		optNTP := resp.GetOneOption(dhcpv6.OptionNTPServer)
-		Expect(optNTP).NotTo(BeNil())
-		subOpts := optNTP.(*dhcpv6.OptNTPServer).Suboptions
-		Expect(subOpts).NotTo(BeNil())
-		Expect(subOpts).To(HaveLen(2))
-		subOptNTPServerAddressFirst := subOpts[0].(*dhcpv6.NTPSuboptionSrvAddr)
-		Expect(subOptNTPServerAddressFirst.String()).To(Equal("Server Address: 2001:db8::1"))
-		subOptNTPServerAddressSecond := subOpts[1].(*dhcpv6.NTPSuboptionSrvAddr)
-		Expect(subOptNTPServerAddressSecond.String()).To(Equal("Server Address: fe80::1337"))
+	It("Setup6 should return error if config file does not exist", func() {
+		_, err := setup6("does-not-exist.yaml")
+		Expect(err).To(HaveOccurred())
 	})
 
-	It("skips NTP v6 option when not requested", func() {
-		ntpConfig = &api.NTPConfig{
-			ServersV6: []net.IP{net.ParseIP("2001:db8::1")},
-		}
+	It("Setup6 should return error if config file is invalid", func() {
+		_, err := setup6(writeConfigData([]byte("Invalid YAML")))
+		Expect(err).To(HaveOccurred())
+	})
 
-		req, _ := dhcpv6.NewMessage()
-		stub := &dhcpv6.Message{}
-		resp, stop := handler6(req, stub)
-		Expect(stop).NotTo(BeTrue())
+	It("Setup4 should return error if less arguments are provided", func() {
+		_, err := setup4()
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Setup4 should return error if more arguments are provided", func() {
+		_, err := setup4("foo", "bar")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Setup4 should return error if config file does not exist", func() {
+		_, err := setup4("does-not-exist.yaml")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Setup4 should return error if config file is invalid", func() {
+		_, err := setup4(writeConfigData([]byte("Invalid YAML")))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Setup6 should return a non-nil handler for an empty config", func() {
+		h6, err := setup6(writeConfig(api.NTPConfig{}))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h6).NotTo(BeNil())
+		Expect(ntpConfig.ServersV6).To(BeEmpty())
+	})
+
+	It("Setup4 should return a non-nil handler for an empty config", func() {
+		h4, err := setup4(writeConfig(api.NTPConfig{}))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h4).NotTo(BeNil())
+		Expect(ntpConfig.Servers).To(BeEmpty())
+	})
+
+	It("Should return a valid config for a valid config file", func() {
+		config, err := loadConfig(writeConfigData([]byte(
+			"servers:\n" +
+				"  - " + ntpServerIPV4Address1 + "\n" +
+				"  - " + ntpServerIPV4Address2 + "\n" +
+				"servers_v6:\n" +
+				"  - " + ntpServerIPV6Address1 + "\n" +
+				"  - " + ntpServerIPV6Address2 + "\n")))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(config.Servers).To(Equal(ntpServersV4))
+		Expect(config.ServersV6).To(Equal(ntpServersV6))
+	})
+
+	It("Should return an error for a config file with an invalid server address", func() {
+		_, err := loadConfig(writeConfigData([]byte("servers:\n  - not-an-ip\n")))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should add the NTP servers option to an IPv4 DHCP reply, if requested", func() {
+		req := newRequest4(dhcpv4.WithRequestedOptions(dhcpv4.OptionNTPServers))
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		resp, breakChain := handler4(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).To(BeIdenticalTo(stub))
+		Expect(resp.NTPServers()).To(HaveExactElements(
+			net.ParseIP(ntpServerIPV4Address1).To4(),
+			net.ParseIP(ntpServerIPV4Address2).To4(),
+		))
+	})
+
+	It("Should add the NTP servers option to an IPv4 DHCP reply, if no options are explicitly requested", func() {
+		// RFC2131 3.5: all available parameters are sent if there is no parameter request list
+		req := newRequest4()
+		Expect(req.ParameterRequestList()).To(BeNil())
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		resp, breakChain := handler4(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp.NTPServers()).To(HaveLen(2))
+	})
+
+	It("Should replace an existing NTP servers option in an IPv4 DHCP reply", func() {
+		req := newRequest4(dhcpv4.WithRequestedOptions(dhcpv4.OptionNTPServers))
+		stub, _ := dhcpv4.NewReplyFromRequest(req,
+			dhcpv4.WithOption(dhcpv4.OptNTPServers(net.ParseIP("10.0.0.1"))))
+
+		resp, breakChain := handler4(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp.NTPServers()).To(HaveExactElements(
+			net.ParseIP(ntpServerIPV4Address1).To4(),
+			net.ParseIP(ntpServerIPV4Address2).To4(),
+		))
+	})
+
+	It("Should not add the NTP servers option to an IPv4 DHCP reply, if not requested", func() {
+		req := newRequest4(dhcpv4.WithRequestedOptions(dhcpv4.OptionDomainNameServer))
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		resp, breakChain := handler4(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).To(BeIdenticalTo(stub))
+		Expect(resp.Options.Has(dhcpv4.OptionNTPServers)).To(BeFalse())
+	})
+
+	It("Should not add the NTP servers option to an IPv4 DHCP reply, if no IPv4 servers are configured", func() {
+		h4, err := setup4(writeConfig(api.NTPConfig{ServersV6: ntpServersV6}))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h4).NotTo(BeNil())
+
+		req := newRequest4(dhcpv4.WithRequestedOptions(dhcpv4.OptionNTPServers))
+		stub, _ := dhcpv4.NewReplyFromRequest(req)
+
+		resp, breakChain := handler4(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp.Options.Has(dhcpv4.OptionNTPServers)).To(BeFalse())
+	})
+
+	It("Should add the NTP server option to an IPv6 DHCP reply for a relayed request, if requested", func() {
+		req := newRequest6(dhcpv6.OptionNTPServer)
+		relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+			net.ParseIP(relayIPV6Address), net.ParseIP(linkLocalIPV6Address))
+		Expect(err).NotTo(HaveOccurred())
+		stub := newReply6()
+
+		resp, breakChain := handler6(relayedRequest, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).To(BeIdenticalTo(stub))
+		Expect(ntpServerAddresses(resp)).To(HaveExactElements(ntpServerIPV6Address1, ntpServerIPV6Address2))
+	})
+
+	It("Should add the NTP server option to an IPv6 DHCP reply for a direct request, if requested", func() {
+		req := newRequest6(dhcpv6.OptionNTPServer)
+		stub := newReply6()
+
+		resp, breakChain := handler6(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).To(BeIdenticalTo(stub))
+		Expect(ntpServerAddresses(resp)).To(HaveExactElements(ntpServerIPV6Address1, ntpServerIPV6Address2))
+	})
+
+	It("Should not add the NTP server option to an IPv6 DHCP reply, if not requested", func() {
+		req := newRequest6(dhcpv6.OptionDNSRecursiveNameServer)
+		stub := newReply6()
+
+		resp, breakChain := handler6(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).To(BeIdenticalTo(stub))
 		Expect(resp.GetOneOption(dhcpv6.OptionNTPServer)).To(BeNil())
 	})
 
-	It("skips when no servers", func() {
-		ntpConfig = &api.NTPConfig{}
+	It("Should not add the NTP server option to an IPv6 DHCP reply, if no options are requested", func() {
+		req := newRequest6()
+		stub := newReply6()
 
-		req, _ := dhcpv4.New()
-		stub, _ := dhcpv4.New()
-		resp, stop := handler4(req, stub)
-		Expect(stop).NotTo(BeTrue())
-		Expect(resp.Options.Get(dhcpv4.OptionNTPServers)).To(BeNil())
+		resp, breakChain := handler6(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp.GetOneOption(dhcpv6.OptionNTPServer)).To(BeNil())
+	})
+
+	It("Should not add the NTP server option to an IPv6 DHCP reply, if no IPv6 servers are configured", func() {
+		h6, err := setup6(writeConfig(api.NTPConfig{Servers: ntpServersV4}))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(h6).NotTo(BeNil())
+
+		req := newRequest6(dhcpv6.OptionNTPServer)
+		stub := newReply6()
+
+		resp, breakChain := handler6(req, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp.GetOneOption(dhcpv6.OptionNTPServer)).To(BeNil())
+	})
+
+	It("Should return the unchanged IPv6 DHCP reply and not break plugin chain, if the relayed request cannot be decapsulated", func() {
+		// relay message without an encapsulated message
+		relayedRequest := &dhcpv6.RelayMessage{
+			MessageType: dhcpv6.MessageTypeRelayForward,
+			LinkAddr:    net.ParseIP(relayIPV6Address),
+			PeerAddr:    net.ParseIP(linkLocalIPV6Address),
+		}
+		stub := newReply6()
+
+		resp, breakChain := handler6(relayedRequest, stub)
+		Expect(breakChain).To(BeFalse())
+		Expect(resp).To(BeIdenticalTo(stub))
+		Expect(resp.GetOneOption(dhcpv6.OptionNTPServer)).To(BeNil())
 	})
 })
 
-func parseIPv4ListOption(b []byte) []net.IP {
-	ips := make([]net.IP, 0, len(b)/4)
-	for i := 0; i+4 <= len(b); i += 4 {
-		ips = append(ips, net.IPv4(b[i], b[i+1], b[i+2], b[i+3]))
+// newRequest4 returns a DHCPv4 discover, which has no parameter request list unless set by a modifier.
+func newRequest4(modifiers ...dhcpv4.Modifier) *dhcpv4.DHCPv4 {
+	mac, err := net.ParseMAC(clientMACAddress)
+	Expect(err).NotTo(HaveOccurred())
+
+	modifiers = append([]dhcpv4.Modifier{
+		dhcpv4.WithHwAddr(mac),
+		dhcpv4.WithMessageType(dhcpv4.MessageTypeDiscover),
+	}, modifiers...)
+	req, err := dhcpv4.New(modifiers...)
+	Expect(err).NotTo(HaveOccurred())
+	return req
+}
+
+func newRequest6(requestedOptions ...dhcpv6.OptionCode) *dhcpv6.Message {
+	req, err := dhcpv6.NewMessage()
+	Expect(err).NotTo(HaveOccurred())
+	req.MessageType = dhcpv6.MessageTypeRequest
+	if len(requestedOptions) > 0 {
+		req.AddOption(dhcpv6.OptRequestedOption(requestedOptions...))
 	}
-	return ips
+	return req
+}
+
+func newReply6() *dhcpv6.Message {
+	stub, err := dhcpv6.NewMessage()
+	Expect(err).NotTo(HaveOccurred())
+	stub.MessageType = dhcpv6.MessageTypeReply
+	return stub
+}
+
+// ntpServerAddresses returns the server address suboptions of the NTP server option of a DHCPv6 message.
+func ntpServerAddresses(msg dhcpv6.DHCPv6) []string {
+	opt := msg.GetOneOption(dhcpv6.OptionNTPServer)
+	Expect(opt).NotTo(BeNil())
+	Expect(opt).To(BeAssignableToTypeOf(&dhcpv6.OptNTPServer{}))
+
+	subOpts := opt.(*dhcpv6.OptNTPServer).Suboptions
+	addresses := make([]string, 0, len(subOpts))
+	for _, subOpt := range subOpts {
+		Expect(subOpt).To(BeAssignableToTypeOf(&dhcpv6.NTPSuboptionSrvAddr{}))
+		addresses = append(addresses, net.IP(*subOpt.(*dhcpv6.NTPSuboptionSrvAddr)).String())
+	}
+	return addresses
 }
