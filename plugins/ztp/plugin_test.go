@@ -17,6 +17,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const testSwitchName = "test-switch"
+
 var _ = Describe("ZTP Plugin", func() {
 	Describe("Configuration Loading", func() {
 		It("should return an error if the configuration file is missing", func() {
@@ -194,6 +196,64 @@ var _ = Describe("ZTP Plugin", func() {
 			resp, stop := handler6(req, stub)
 			Expect(stop).To(BeTrue())
 			Expect(resp).To(BeNil())
+		})
+	})
+
+	Describe("Switch Inventory", func() {
+		BeforeEach(func() {
+			// the inventory is shared with the other specs
+			oldInventory := inventory
+			DeferCleanup(func() { inventory = oldInventory })
+		})
+
+		DescribeTable("should return provisioning script for a known MAC in any notation",
+			func(configuredMAC string) {
+				_, err := setup6(writeConfig(&api.ZTPConfig{
+					Switches: []api.Switch{{
+						MacAddress:                configuredMAC,
+						ProvisioningScriptAddress: testZtpProvisioningScriptPath,
+						Name:                      testSwitchName,
+					}},
+				}))
+				Expect(err).NotTo(HaveOccurred())
+
+				resp, stop := handler6(createRequest("aa:bb:cc:dd:ee:ff", true, true), createReply())
+				Expect(stop).To(BeFalse())
+
+				opt := resp.GetOneOption(optionZTPCode)
+				Expect(opt).NotTo(BeNil())
+				Expect(opt.(*dhcpv6.OptionGeneric).OptionData).To(Equal([]byte(testZtpProvisioningScriptPath)))
+			},
+			Entry("lower case", "aa:bb:cc:dd:ee:ff"),
+			Entry("upper case", "AA:BB:CC:DD:EE:FF"),
+			Entry("hyphen separated", "aa-bb-cc-dd-ee-ff"),
+		)
+
+		It("Setup6 should return error for an invalid switch MAC address", func() {
+			_, err := setup6(writeConfig(&api.ZTPConfig{
+				Switches: []api.Switch{{
+					MacAddress:                "not-a-mac",
+					ProvisioningScriptAddress: testZtpProvisioningScriptPath,
+					Name:                      testSwitchName,
+				}},
+			}))
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("Setup6 should replace the inventory of a previous setup", func() {
+			configFile := writeConfig(&api.ZTPConfig{
+				Switches: []api.Switch{{
+					MacAddress:                inventoryMAC,
+					ProvisioningScriptAddress: testZtpProvisioningScriptPath,
+					Name:                      testSwitchName,
+				}},
+			})
+
+			for range 2 {
+				_, err := setup6(configFile)
+				Expect(err).NotTo(HaveOccurred())
+			}
+			Expect(inventory).To(HaveLen(1))
 		})
 	})
 })

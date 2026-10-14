@@ -32,9 +32,12 @@ var Plugin = plugins.Plugin{
 
 var prefixLength int
 
+var (
+	preferredLifeTime time.Duration
+	validLifeTime     time.Duration
+)
+
 const (
-	preferredLifeTime         = 24 * time.Hour
-	validLifeTime             = 24 * time.Hour
 	prefixDelegationLengthMin = 1
 	prefixDelegationLengthMax = 127
 )
@@ -76,6 +79,12 @@ func setup6(args ...string) (handler.Handler6, error) {
 	if prefixLength < prefixDelegationLengthMin || prefixLength > prefixDelegationLengthMax {
 		return nil, fmt.Errorf("invalid prefix length: %d", prefixLength)
 	}
+
+	if err := onMetalConfig.LeaseTimes.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid lease times: %v", err)
+	}
+	preferredLifeTime, validLifeTime = onMetalConfig.LeaseTimes.Resolve()
+	log.Infof("Using lease times (preferred %s, valid %s)", preferredLifeTime, validLifeTime)
 
 	return handler6, nil
 }

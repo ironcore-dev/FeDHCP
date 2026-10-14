@@ -27,7 +27,11 @@ var Plugin = plugins.Plugin{
 	Name:   "bluefield",
 	Setup6: setupPlugin,
 }
-var ipaddr net.IP
+var (
+	ipaddr            net.IP
+	preferredLifeTime time.Duration
+	validLifeTime     time.Duration
+)
 
 // args[0] = path to config file
 func parseArgs(args ...string) (string, error) {
@@ -66,7 +70,11 @@ func setupPlugin(args ...string) (handler.Handler6, error) {
 	if ipaddr == nil {
 		return nil, fmt.Errorf("invalid IPv6 address: %s", args[0])
 	}
-	log.Infof("Parsed IP %s", ipaddr)
+	if err := bluefieldIPConfig.LeaseTimes.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid lease times: %v", err)
+	}
+	preferredLifeTime, validLifeTime = bluefieldIPConfig.LeaseTimes.Resolve()
+	log.Infof("Parsed IP %s, lease times (preferred %s, valid %s)", ipaddr, preferredLifeTime, validLifeTime)
 	return handleDHCPv6, nil
 }
 
@@ -112,7 +120,12 @@ func handleDHCPv6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 					return nil, true
 				}
 			}
-			releaseOptIANA(resp, m.Options.OneIANA().IaId, m.Options.OneIANA().Options.Addresses()[0].IPv6Addr)
+			// a release without address has no binding, see releaseOptIANA
+			var clientIP net.IP
+			if addr := m.Options.OneIANA().Options.OneAddress(); addr != nil {
+				clientIP = addr.IPv6Addr
+			}
+			releaseOptIANA(resp, m.Options.OneIANA().IaId, clientIP)
 			return resp, true
 		}
 	}
@@ -128,8 +141,8 @@ func addOptIANA(resp dhcpv6.DHCPv6, iaId [4]byte) {
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
 				IPv6Addr:          ipaddr,
-				PreferredLifetime: 24 * time.Hour,
-				ValidLifetime:     48 * time.Hour,
+				PreferredLifetime: preferredLifeTime,
+				ValidLifetime:     validLifeTime,
 			},
 		}},
 	})

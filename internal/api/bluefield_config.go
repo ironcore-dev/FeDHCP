@@ -4,5 +4,6 @@
 package api
 
 type BluefieldConfig struct {
-	BluefieldIP string `yaml:"bluefieldIP"`
+	BluefieldIP string     `yaml:"bluefieldIP"`
+	LeaseTimes  LeaseTimes `yaml:"leaseTimes"`
 }

@@ -4,15 +4,19 @@
 package stateless
 
 import (
+	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/coredhcp/coredhcp/handler"
 	"github.com/coredhcp/coredhcp/logger"
 	"github.com/coredhcp/coredhcp/plugins"
 	"github.com/insomniacslk/dhcp/dhcpv6"
+	"github.com/ironcore-dev/fedhcp/internal/api"
 	"github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/ironcore-dev/fedhcp/internal/printer"
+	"gopkg.in/yaml.v3"
 )
 
 var log = logger.GetLogger("plugins/stateless")
@@ -23,13 +27,65 @@ var Plugin = plugins.Plugin{
 }
 
 const (
-	preferredLifeTime = 24 * time.Hour
-	validLifeTime     = 24 * time.Hour
-	macLen            = 6
-	macOffset         = 10
+	macLen    = 6
+	macOffset = 10
 )
 
-func setup6(_ ...string) (handler.Handler6, error) {
+var (
+	preferredLifeTime time.Duration
+	validLifeTime     time.Duration
+)
+
+// args[0] = path to config file (optional)
+func parseArgs(args ...string) (string, error) {
+	if len(args) > 1 {
+		return "", fmt.Errorf("at most one argument may be passed to the plugin, got %d", len(args))
+	}
+	if len(args) == 0 {
+		return "", nil
+	}
+	return args[0], nil
+}
+
+func loadConfig(args ...string) error {
+	path, err := parseArgs(args...)
+	if err != nil {
+		return fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	// defaults
+	preferredLifeTime = api.DefaultLeaseTime
+	validLifeTime = api.DefaultLeaseTime
+
+	if path == "" {
+		log.Infof("No config file provided, using default lease times (preferred %s, valid %s)",
+			preferredLifeTime, validLifeTime)
+		return nil
+	}
+
+	log.Debugf("Reading config file %s", path)
+	configData, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+
+	config := &api.StatelessConfig{}
+	if err = yaml.Unmarshal(configData, config); err != nil {
+		return fmt.Errorf("failed to parse config file: %v", err)
+	}
+
+	if err := config.LeaseTimes.Validate(); err != nil {
+		return fmt.Errorf("invalid lease times: %v", err)
+	}
+	preferredLifeTime, validLifeTime = config.LeaseTimes.Resolve()
+	log.Infof("Using lease times (preferred %s, valid %s)", preferredLifeTime, validLifeTime)
+	return nil
+}
+
+func setup6(args ...string) (handler.Handler6, error) {
+	if err := loadConfig(args...); err != nil {
+		return nil, err
+	}
 	return handler6, nil
 }
 

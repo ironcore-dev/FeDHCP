@@ -5,6 +5,7 @@ package ztp
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 
@@ -72,7 +73,15 @@ func parseConfig(args ...string) error {
 		return err
 	}
 
+	switches := SwitchInventory{}
 	for _, switchEntry := range ztpConfig.Switches {
+		// normalize the MAC address, the client MAC is matched in its canonical (lower case) notation
+		mac, err := net.ParseMAC(switchEntry.MacAddress)
+		if err != nil {
+			return fmt.Errorf("invalid MAC address of switch %s: %v", switchEntry.Name, err)
+		}
+		switchEntry.MacAddress = mac.String()
+
 		scriptURL, err := url.Parse(switchEntry.ProvisioningScriptAddress)
 		if err != nil {
 			return fmt.Errorf("invalid ztp script scriptURL: %v", err)
@@ -82,8 +91,11 @@ func parseConfig(args ...string) error {
 			return fmt.Errorf("malformed ZTP script parameter, should be a valid URL")
 		}
 
-		inventory = append(inventory, switchEntry)
+		switches = append(switches, switchEntry)
 	}
+
+	// replace, never extend, the inventory of a previous setup
+	inventory = switches
 
 	return nil
 }
