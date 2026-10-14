@@ -181,6 +181,20 @@ var _ = Describe("Bluefield Plugin", func() {
 			})
 		})
 
+		Context("when handling Release messages without an IANA address", func() {
+			It("should respond with NoBinding", func() {
+				resp, stop := handleDHCPv6(createReleaseMessage(""), nil)
+				Expect(stop).To(BeTrue())
+				Expect(resp).NotTo(BeNil())
+
+				respm, err := resp.GetInnerMessage()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(respm.MessageType).To(Equal(dhcpv6.MessageTypeReply))
+				Expect(respm.Options.OneIANA().Options.Options[0].(*dhcpv6.OptIAAddress).IPv6Addr).To(BeNil())
+				Expect(respm.Options.OneIANA().Options.Options[0].(*dhcpv6.OptIAAddress).Options.Options[0].(*dhcpv6.OptStatusCode).StatusCode).To(Equal(iana.StatusNoBinding))
+			})
+		})
+
 		Context("when handling unsupported message types", func() {
 			It("should return nil for unsupported types", func() {
 				resp, stop := handleDHCPv6(createUnsupportedMessage(), nil)
@@ -224,15 +238,17 @@ func createReleaseMessage(ipAddress string) dhcpv6.DHCPv6 {
 		MessageType:   dhcpv6.MessageTypeRelease,
 	}
 	msg.AddOption(dhcpv6.OptClientID(clientID))
-	msg.AddOption(&dhcpv6.OptIANA{
-		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
-			&dhcpv6.OptIAAddress{
-				IPv6Addr:          net.ParseIP(ipAddress),
-				PreferredLifetime: 24 * time.Hour,
-				ValidLifetime:     48 * time.Hour,
-			},
-		}},
-	})
+
+	// an empty address results in an IANA without IA address
+	optIANA := &dhcpv6.OptIANA{}
+	if ipAddress != "" {
+		optIANA.Options.Add(&dhcpv6.OptIAAddress{
+			IPv6Addr:          net.ParseIP(ipAddress),
+			PreferredLifetime: 24 * time.Hour,
+			ValidLifetime:     48 * time.Hour,
+		})
+	}
+	msg.AddOption(optIANA)
 
 	return msg
 }
