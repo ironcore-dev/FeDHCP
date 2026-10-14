@@ -64,7 +64,76 @@ func TestWrongNumberArgs(t *testing.T) {
 	}
 }
 
+func TestInvalidConfig(t *testing.T) {
+	configFile := t.TempDir() + "/config.yaml"
+	if err := os.WriteFile(configFile, []byte("Invalid YAML"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := setup6(configFile); err == nil {
+		t.Fatal("no error occurred when providing an invalid configuration file, but it should have")
+	}
+}
+
 /* IPv6 */
+// TestInvalidRelayMessages6 ensures that requests are dropped, if no address
+// can be derived from the relay message.
+func TestInvalidRelayMessages6(t *testing.T) {
+	Init6()
+
+	tests := []struct {
+		name           string
+		relayedRequest func(t *testing.T) *dhcpv6.RelayMessage
+	}{
+		{
+			name: "relay message without encapsulated message",
+			relayedRequest: func(t *testing.T) *dhcpv6.RelayMessage {
+				return &dhcpv6.RelayMessage{
+					MessageType: dhcpv6.MessageTypeRelayForward,
+					LinkAddr:    net.IPv6loopback,
+					PeerAddr:    net.IPv6loopback,
+				}
+			},
+		},
+		{
+			name: "peer address is not an IPv6 address",
+			relayedRequest: func(t *testing.T) *dhcpv6.RelayMessage {
+				req, err := dhcpv6.NewMessage()
+				if err != nil {
+					t.Fatal(err)
+				}
+				req.MessageType = dhcpv6.MessageTypeRequest
+				req.AddOption(&dhcpv6.OptIANA{IaId: expectedIAID})
+
+				relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+					net.IPv6loopback, net.ParseIP("192.0.2.1"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return relayedRequest
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stub, err := dhcpv6.NewMessage()
+			if err != nil {
+				t.Fatal(err)
+			}
+			stub.MessageType = dhcpv6.MessageTypeReply
+
+			resp, stop := handler6(tt.relayedRequest(t), stub)
+			if resp != nil {
+				t.Errorf("plugin should not return a message, got %v", resp)
+			}
+			if !stop {
+				t.Error("plugin did not interrupt processing, but it should have")
+			}
+		})
+	}
+}
+
 func TestIPAddressRequested6(t *testing.T) {
 	Init6()
 

@@ -5,6 +5,7 @@ package leases
 
 import (
 	"net"
+	"os"
 	"time"
 
 	"github.com/insomniacslk/dhcp/dhcpv6"
@@ -12,6 +13,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	. "sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 )
 
@@ -31,6 +33,49 @@ var _ = Describe("Leases", func() {
 	It("Setup6 should return error if config file does not exist", func() {
 		_, err := setup6("does-not-exist.yaml")
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("Setup6 should return error if config file is invalid", func() {
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), []byte("Invalid YAML"), 0644)).To(Succeed())
+
+		_, err = setup6(file.Name())
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should drop the request, if the lease cannot be recorded", func(ctx SpecContext) {
+		file, err := os.CreateTemp(GinkgoT().TempDir(), configFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			_ = file.Close()
+		}()
+		Expect(os.WriteFile(file.Name(), []byte("namespace: does-not-exist\n"), 0644)).To(Succeed())
+		_, err = setup6(file.Name())
+		Expect(err).NotTo(HaveOccurred())
+
+		// MAC aa:bb:cc:dd:ee:ff -> EUI-64: a8:bb:cc:ff:fe:dd:ee:ff
+		relayedRequest := newRelayedRequest(net.ParseIP("fe80::a8bb:ccff:fedd:eeff"))
+		stub := newReplyWithIANA(net.ParseIP("2001:db8:1111:2222:3333:aabb:ccdd:eeff"))
+
+		resp, stop := handler6(relayedRequest, stub)
+		Expect(resp).To(BeNil())
+		Expect(stop).To(BeTrue())
+	})
+
+	It("Should drop the request, if the client MAC cannot be determined", func(ctx SpecContext) {
+		relayedRequest := newRelayedRequest(net.ParseIP("192.0.2.1"))
+		stub := newReplyWithIANA(net.ParseIP("2001:db8:1111:2222:3333:aabb:ccdd:eeff"))
+
+		resp, stop := handler6(relayedRequest, stub)
+		Expect(resp).To(BeNil())
+		Expect(stop).To(BeTrue())
+
+		leaseList := &fedhcpv1alpha1.LeaseList{}
+		Eventually(ObjectList(leaseList, client.InNamespace(ns.Name))).Should(HaveField("Items", BeEmpty()))
 	})
 
 	It("Should create a lease for a valid relay request with IANA in response", func(ctx SpecContext) {
@@ -237,3 +282,31 @@ var _ = Describe("Leases", func() {
 		Expect(stop).To(BeTrue())
 	})
 })
+
+func newRelayedRequest(peerAddr net.IP) *dhcpv6.RelayMessage {
+	req, err := dhcpv6.NewMessage()
+	Expect(err).NotTo(HaveOccurred())
+	req.MessageType = dhcpv6.MessageTypeRequest
+
+	relayedRequest, err := dhcpv6.EncapsulateRelay(req, dhcpv6.MessageTypeRelayForward,
+		net.ParseIP("2001:db8:1111:2222:3333::"), peerAddr)
+	Expect(err).NotTo(HaveOccurred())
+	return relayedRequest
+}
+
+func newReplyWithIANA(leasedIP net.IP) *dhcpv6.Message {
+	stub, err := dhcpv6.NewMessage()
+	Expect(err).NotTo(HaveOccurred())
+	stub.MessageType = dhcpv6.MessageTypeReply
+	stub.AddOption(&dhcpv6.OptIANA{
+		IaId: [4]byte{1, 2, 3, 4},
+		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
+			&dhcpv6.OptIAAddress{
+				IPv6Addr:          leasedIP,
+				PreferredLifetime: 24 * time.Hour,
+				ValidLifetime:     24 * time.Hour,
+			},
+		}},
+	})
+	return stub
+}
