@@ -11,7 +11,7 @@ require (
 	github.com/ironcore-dev/ipam v0.2.4
 	github.com/ironcore-dev/metal-operator v0.7.1
 	github.com/mdlayher/netx v0.0.0-20230430222610-7e21880baee8
-	github.com/onsi/ginkgo/v2 v2.33.0
+	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/sirupsen/logrus v1.10.2
 	gopkg.in/yaml.v2 v2.4.0
