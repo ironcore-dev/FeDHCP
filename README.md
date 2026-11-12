@@ -289,6 +289,23 @@ When no config file is provided, the defaults (24h) are used.
 - IPv6 relays are mandatory
 - the relay's `LinkAddr` must be a valid `/80` prefix (bytes 10-15 must be zero)
 
+# Metrics
+`FeDHCP` always exposes runtime metrics in [Prometheus](https://prometheus.io/) format on a dedicated HTTP listener that serves `/metrics`. By default it binds to `:9090`; change it with the `-metrics-bind-address` flag (interface and/or port):
+```
+fedhcp -config config.yaml -metrics-bind-address 127.0.0.1:9100
+```
+Scrape `http://<host>:9090/metrics` (or the address you configured).
+
+The following pool metrics are exported (currently emitted by the `stateless` plugin, where a pool is a relay `/80` prefix):
+
+- `fedhcp_pool_ips_total` (gauge, labels: `plugin`, `prefix`) - total number of IP addresses a pool can hand out. For a `/80` prefix this is the size of the 48-bit host region (`2^48`).
+- `fedhcp_pool_ips_leased` (gauge, labels: `plugin`, `prefix`) - number of distinct IP addresses currently leased from a pool.
+- `fedhcp_leases_per_ip` (gauge, labels: `plugin`, `prefix`, `ip`) - number of leases handed out per IP address.
+
+Notes:
+- the `stateless` plugin does not persist state, so leased counts reflect assignments observed since the process started and reset on restart.
+- the `ip` label on `fedhcp_leases_per_ip` is high cardinality; aggregating or bucketing it is tracked as a follow-up.
+
 # License
 `FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2026 by *coredhcp* and the *FeDHCP* authors.
 

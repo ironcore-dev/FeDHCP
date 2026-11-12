@@ -33,6 +33,7 @@ import (
 	"github.com/coredhcp/coredhcp/server"
 	"github.com/ironcore-dev/fedhcp/internal/helper"
 	"github.com/ironcore-dev/fedhcp/internal/kubernetes"
+	"github.com/ironcore-dev/fedhcp/internal/metrics"
 	"github.com/ironcore-dev/fedhcp/plugins/bluefield"
 	"github.com/ironcore-dev/fedhcp/plugins/httpboot"
 	"github.com/ironcore-dev/fedhcp/plugins/ipam"
@@ -87,6 +88,7 @@ var (
 func main() {
 	var configFile, logLevel string
 	var listPlugins bool
+	var metricsAddr string
 
 	flag.DurationVar(&helper.Config.IpPollingInterval, "ip-polling-interval", 2*time.Second,
 		"Interval between polling ip state")
@@ -95,6 +97,8 @@ func main() {
 	flag.StringVar(&configFile, "config", "", "config file")
 	flag.BoolVar(&listPlugins, "list-plugins", false, "list plugins")
 	flag.StringVar(&logLevel, "loglevel", "info", "log level (debug, info, warning, error, fatal, panic)")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":9090",
+		"address the Prometheus metrics endpoint binds to (e.g. :9090 or 127.0.0.1:9090)")
 	flag.Parse()
 
 	if listPlugins {
@@ -137,6 +141,9 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	// start metrics endpoint
+	metrics.Serve(metricsAddr)
 
 	// start server
 	srv, err := server.Start(cfg)
