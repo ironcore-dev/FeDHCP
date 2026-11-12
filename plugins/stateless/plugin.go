@@ -135,17 +135,19 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		return resp, false
 	}
 
+	addr := buildAddressFromMAC(linkAddr, mac)
 	iana := &dhcpv6.OptIANA{
 		IaId: m.Options.OneIANA().IaId,
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
-				IPv6Addr:          buildAddressFromMAC(linkAddr, mac),
+				IPv6Addr:          addr,
 				PreferredLifetime: preferredLifeTime,
 				ValidLifetime:     validLifeTime,
 			},
 		}},
 	}
 	resp.AddOption(iana)
+	tracker.record(linkAddr, addr, validLifeTime)
 	log.Infof("Client %s, added option IA address %s", mac.String(), iana.String())
 
 	return resp, false
