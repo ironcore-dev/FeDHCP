@@ -79,20 +79,20 @@ func TestPoolCounters(t *testing.T) {
 	tr.record(linkAddr, ipA, time.Hour) // new (was expired)
 
 	wantLeases := `
-# HELP fedhcp_pool_leases_total Total number of lease assignments handed out from a pool (new leases plus renewals).
-# TYPE fedhcp_pool_leases_total counter
-fedhcp_pool_leases_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} 4
+# HELP fedhcp_leases_total Total number of lease assignments handed out (new leases plus renewals).
+# TYPE fedhcp_leases_total counter
+fedhcp_leases_total{plugin="stateless"} 4
 `
-	if err := testutil.CollectAndCompare(tr, strings.NewReader(wantLeases), "fedhcp_pool_leases_total"); err != nil {
+	if err := testutil.CollectAndCompare(tr, strings.NewReader(wantLeases), "fedhcp_leases_total"); err != nil {
 		t.Error(err)
 	}
 
 	wantRenewals := `
-# HELP fedhcp_pool_renewals_total Total number of lease renewals (re-requests of an already active address) in a pool.
-# TYPE fedhcp_pool_renewals_total counter
-fedhcp_pool_renewals_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} 1
+# HELP fedhcp_renewals_total Total number of lease renewals (re-requests of an already active address).
+# TYPE fedhcp_renewals_total counter
+fedhcp_renewals_total{plugin="stateless"} 1
 `
-	if err := testutil.CollectAndCompare(tr, strings.NewReader(wantRenewals), "fedhcp_pool_renewals_total"); err != nil {
+	if err := testutil.CollectAndCompare(tr, strings.NewReader(wantRenewals), "fedhcp_renewals_total"); err != nil {
 		t.Error(err)
 	}
 }

@@ -296,21 +296,21 @@ fedhcp -config config.yaml -metrics-bind-address 127.0.0.1:9100
 ```
 Scrape `http://<host>:9090/metrics` (or the address you configured).
 
-The following pool metrics are exported (currently emitted by the `stateless` plugin, where a pool is a relay `/80` prefix):
+The following metrics are exported (currently emitted by the `stateless` plugin, where a pool is a relay `/80` prefix):
 
 - `fedhcp_pool_ips_leased` (gauge, labels: `plugin`, `prefix`) - number of IP addresses with an active (unexpired) lease in a pool.
-- `fedhcp_pool_leases_total` (counter, labels: `plugin`, `prefix`) - total lease assignments handed out from a pool (new leases plus renewals).
-- `fedhcp_pool_renewals_total` (counter, labels: `plugin`, `prefix`) - lease renewals, i.e. re-requests of an address whose lease is still active.
+- `fedhcp_leases_total` (counter, labels: `plugin`) - total lease assignments handed out (new leases plus renewals), aggregated across all pools.
+- `fedhcp_renewals_total` (counter, labels: `plugin`) - lease renewals, i.e. re-requests of an address whose lease is still active.
 
 Notes:
-- a lease is considered active until its valid lifetime elapses; expired leases are pruned at scrape time, so active-lease state stays bounded by the number of active leases.
+- a lease is considered active until its valid lifetime elapses; expired leases are pruned at scrape time, so `fedhcp_pool_ips_leased` stays bounded by the number of active leases.
 - re-requesting an address after its lease has lapsed counts as a new lease, not a renewal.
-- the gauges are kept in memory only and reset on restart; the counters are per `/80` prefix (bounded by the number of relays) and also reset on restart.
+- the counters are aggregated per instance (no `prefix` label) so their cardinality stays bounded even in topologies with one relay prefix per switch port; like the gauge they are in-memory and reset on restart.
 
-For example, the renewal rate and new-lease rate per pool can be derived from the counters:
+For example, the renewal rate and new-lease rate can be derived from the counters:
 ```
-rate(fedhcp_pool_renewals_total[5m])
-rate(fedhcp_pool_leases_total[5m]) - rate(fedhcp_pool_renewals_total[5m])
+rate(fedhcp_renewals_total[5m])
+rate(fedhcp_leases_total[5m]) - rate(fedhcp_renewals_total[5m])
 ```
 
 # License
