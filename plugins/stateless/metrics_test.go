@@ -61,6 +61,42 @@ fedhcp_pool_ips_leased{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"}
 	expect(0)
 }
 
+func TestPoolCounters(t *testing.T) {
+	now := time.Unix(0, 0)
+	tr := newPoolTracker()
+	tr.now = func() time.Time { return now }
+
+	linkAddr := net.ParseIP("2001:db8:1111:2222:3333::")
+	ipA := net.ParseIP("2001:db8:1111:2222:3333:aabb:ccdd:eeff")
+	ipB := net.ParseIP("2001:db8:1111:2222:3333:1122:3344:5566")
+
+	tr.record(linkAddr, ipA, time.Hour) // new
+	tr.record(linkAddr, ipB, time.Hour) // new
+	tr.record(linkAddr, ipA, time.Hour) // renewal (still active)
+
+	// let ipA's lease lapse, then re-request: counts as a new lease, not a renewal
+	now = now.Add(2 * time.Hour)
+	tr.record(linkAddr, ipA, time.Hour) // new (was expired)
+
+	wantLeases := `
+# HELP fedhcp_pool_leases_total Total number of lease assignments handed out from a pool (new leases plus renewals).
+# TYPE fedhcp_pool_leases_total counter
+fedhcp_pool_leases_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} 4
+`
+	if err := testutil.CollectAndCompare(tr, strings.NewReader(wantLeases), "fedhcp_pool_leases_total"); err != nil {
+		t.Error(err)
+	}
+
+	wantRenewals := `
+# HELP fedhcp_pool_renewals_total Total number of lease renewals (re-requests of an already active address) in a pool.
+# TYPE fedhcp_pool_renewals_total counter
+fedhcp_pool_renewals_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} 1
+`
+	if err := testutil.CollectAndCompare(tr, strings.NewReader(wantRenewals), "fedhcp_pool_renewals_total"); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestPoolIPsTotal(t *testing.T) {
 	now := time.Unix(0, 0)
 	tr := newPoolTracker()

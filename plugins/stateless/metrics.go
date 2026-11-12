@@ -35,27 +35,45 @@ var (
 		"Number of IP addresses with an active (unexpired) lease in a pool.",
 		[]string{"plugin", "prefix"}, nil,
 	)
+	poolLeasesTotalDesc = prometheus.NewDesc(
+		metrics.Namespace+"_pool_leases_total",
+		"Total number of lease assignments handed out from a pool (new leases plus renewals).",
+		[]string{"plugin", "prefix"}, nil,
+	)
+	poolRenewalsTotalDesc = prometheus.NewDesc(
+		metrics.Namespace+"_pool_renewals_total",
+		"Total number of lease renewals (re-requests of an already active address) in a pool.",
+		[]string{"plugin", "prefix"}, nil,
+	)
 )
 
 // poolTracker records, per relay /80 prefix, the active leases and their
-// expiry. It implements prometheus.Collector: expired leases are pruned at
-// scrape time, so the gauges reflect only currently active leases and
-// active-lease state stays bounded by the number of active leases.
+// expiry, plus monotonic assignment and renewal counts. It implements
+// prometheus.Collector: expired leases are pruned at scrape time, so the
+// gauges reflect only currently active leases and active-lease state stays
+// bounded by the number of active leases.
+//
+// The leases/renewals counters are keyed by /80 prefix (bounded by the number
+// of relays, not clients) and are kept across pruning so they stay monotonic.
 //
 // The DHCP response itself remains a pure function of the request; this
 // bookkeeping exists solely for observability.
 type poolTracker struct {
-	mu    sync.Mutex
-	pools map[string]map[string]time.Time // prefix -> ip -> lease expiry
-	now   func() time.Time
+	mu       sync.Mutex
+	pools    map[string]map[string]time.Time // prefix -> ip -> lease expiry
+	leases   map[string]float64              // prefix -> cumulative assignments
+	renewals map[string]float64              // prefix -> cumulative renewals
+	now      func() time.Time
 }
 
 var tracker = newPoolTracker()
 
 func newPoolTracker() *poolTracker {
 	return &poolTracker{
-		pools: make(map[string]map[string]time.Time),
-		now:   time.Now,
+		pools:    make(map[string]map[string]time.Time),
+		leases:   make(map[string]float64),
+		renewals: make(map[string]float64),
+		now:      time.Now,
 	}
 }
 
@@ -75,7 +93,8 @@ func prefixString(linkAddr net.IP) string {
 
 // record registers (or refreshes) a lease for addr out of linkAddr's pool,
 // expiring validLifetime from now. Re-requesting an address whose lease is
-// still active refreshes its expiry rather than adding another active lease.
+// still active counts as a renewal and refreshes its expiry rather than adding
+// another active lease; re-requesting after expiry counts as a new lease.
 func (t *poolTracker) record(linkAddr, addr net.IP, validLifetime time.Duration) {
 	prefix := prefixString(linkAddr)
 	ip := addr.String()
@@ -87,7 +106,15 @@ func (t *poolTracker) record(linkAddr, addr net.IP, validLifetime time.Duration)
 	if !ok {
 		ips = make(map[string]time.Time)
 		t.pools[prefix] = ips
+		// expose a 0-valued renewals series for this prefix from the start
+		// (leases is incremented unconditionally below)
+		t.renewals[prefix] += 0
 	}
+
+	if expiry, active := ips[ip]; active && expiry.After(t.now()) {
+		t.renewals[prefix]++
+	}
+	t.leases[prefix]++
 	ips[ip] = t.now().Add(validLifetime)
 }
 
@@ -111,10 +138,13 @@ func (t *poolTracker) pruneLocked() {
 func (t *poolTracker) Describe(ch chan<- *prometheus.Desc) {
 	ch <- poolIPsTotalDesc
 	ch <- poolIPsLeasedDesc
+	ch <- poolLeasesTotalDesc
+	ch <- poolRenewalsTotalDesc
 }
 
 // Collect implements prometheus.Collector. It prunes expired leases first so
-// the reported gauge values reflect only active leases.
+// the reported gauge values reflect only active leases. The leases/renewals
+// counters are emitted for every prefix ever seen so they stay monotonic.
 func (t *poolTracker) Collect(ch chan<- prometheus.Metric) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -126,5 +156,11 @@ func (t *poolTracker) Collect(ch chan<- prometheus.Metric) {
 	for prefix, ips := range t.pools {
 		ch <- prometheus.MustNewConstMetric(poolIPsTotalDesc, prometheus.GaugeValue, total, pluginName, prefix)
 		ch <- prometheus.MustNewConstMetric(poolIPsLeasedDesc, prometheus.GaugeValue, float64(len(ips)), pluginName, prefix)
+	}
+	for prefix, n := range t.leases {
+		ch <- prometheus.MustNewConstMetric(poolLeasesTotalDesc, prometheus.CounterValue, n, pluginName, prefix)
+	}
+	for prefix, n := range t.renewals {
+		ch <- prometheus.MustNewConstMetric(poolRenewalsTotalDesc, prometheus.CounterValue, n, pluginName, prefix)
 	}
 }
