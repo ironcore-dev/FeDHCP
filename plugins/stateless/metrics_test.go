@@ -96,19 +96,3 @@ fedhcp_pool_renewals_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/
 		t.Error(err)
 	}
 }
-
-func TestPoolIPsTotal(t *testing.T) {
-	now := time.Unix(0, 0)
-	tr := newPoolTracker()
-	tr.now = func() time.Time { return now }
-	tr.record(net.ParseIP("2001:db8:1111:2222:3333::"), net.ParseIP("2001:db8:1111:2222:3333::1"), time.Hour)
-
-	want := `
-# HELP fedhcp_pool_ips_total Total number of IP addresses available in a pool.
-# TYPE fedhcp_pool_ips_total gauge
-fedhcp_pool_ips_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} 2.81474976710656e+14
-`
-	if err := testutil.CollectAndCompare(tr, strings.NewReader(want), "fedhcp_pool_ips_total"); err != nil {
-		t.Error(err)
-	}
-}

@@ -298,7 +298,6 @@ Scrape `http://<host>:9090/metrics` (or the address you configured).
 
 The following pool metrics are exported (currently emitted by the `stateless` plugin, where a pool is a relay `/80` prefix):
 
-- `fedhcp_pool_ips_total` (gauge, labels: `plugin`, `prefix`) - total number of IP addresses a pool can hand out. For a `/80` prefix this is the size of the 48-bit host region (`2^48`).
 - `fedhcp_pool_ips_leased` (gauge, labels: `plugin`, `prefix`) - number of IP addresses with an active (unexpired) lease in a pool.
 - `fedhcp_pool_leases_total` (counter, labels: `plugin`, `prefix`) - total lease assignments handed out from a pool (new leases plus renewals).
 - `fedhcp_pool_renewals_total` (counter, labels: `plugin`, `prefix`) - lease renewals, i.e. re-requests of an address whose lease is still active.

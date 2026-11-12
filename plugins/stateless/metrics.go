@@ -5,7 +5,6 @@ package stateless
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"sync"
 	"time"
@@ -14,22 +13,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const (
-	// pluginName labels all metrics emitted by this plugin.
-	pluginName = "stateless"
-
-	// hostBits is the size of the host region of a /80 relay prefix
-	// (bytes 10-15 = 48 bits). It determines how many addresses a pool can
-	// theoretically hand out.
-	hostBits = (net.IPv6len - macOffset) * 8
-)
+// pluginName labels all metrics emitted by this plugin.
+const pluginName = "stateless"
 
 var (
-	poolIPsTotalDesc = prometheus.NewDesc(
-		metrics.Namespace+"_pool_ips_total",
-		"Total number of IP addresses available in a pool.",
-		[]string{"plugin", "prefix"}, nil,
-	)
 	poolIPsLeasedDesc = prometheus.NewDesc(
 		metrics.Namespace+"_pool_ips_leased",
 		"Number of IP addresses with an active (unexpired) lease in a pool.",
@@ -48,13 +35,13 @@ var (
 )
 
 // poolTracker records, per relay /80 prefix, the active leases and their
-// expiry, plus monotonic assignment and renewal counts. It implements
+// expiry, plus per-pool assignment and renewal counts. It implements
 // prometheus.Collector: expired leases are pruned at scrape time, so the
 // gauges reflect only currently active leases and active-lease state stays
 // bounded by the number of active leases.
 //
-// The leases/renewals counters are keyed by /80 prefix (bounded by the number
-// of relays, not clients) and are kept across pruning so they stay monotonic.
+// The leases/renewals counters are keyed by /80 prefix and are kept across
+// pruning so they stay monotonic.
 //
 // The DHCP response itself remains a pure function of the request; this
 // bookkeeping exists solely for observability.
@@ -136,7 +123,6 @@ func (t *poolTracker) pruneLocked() {
 
 // Describe implements prometheus.Collector.
 func (t *poolTracker) Describe(ch chan<- *prometheus.Desc) {
-	ch <- poolIPsTotalDesc
 	ch <- poolIPsLeasedDesc
 	ch <- poolLeasesTotalDesc
 	ch <- poolRenewalsTotalDesc
@@ -151,10 +137,7 @@ func (t *poolTracker) Collect(ch chan<- prometheus.Metric) {
 
 	t.pruneLocked()
 
-	// A /80 prefix has 2^48 assignable host addresses.
-	total := math.Pow(2, hostBits)
 	for prefix, ips := range t.pools {
-		ch <- prometheus.MustNewConstMetric(poolIPsTotalDesc, prometheus.GaugeValue, total, pluginName, prefix)
 		ch <- prometheus.MustNewConstMetric(poolIPsLeasedDesc, prometheus.GaugeValue, float64(len(ips)), pluginName, prefix)
 	}
 	for prefix, n := range t.leases {
