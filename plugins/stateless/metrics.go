@@ -8,8 +8,10 @@ import (
 	"math"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/ironcore-dev/fedhcp/internal/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -22,17 +24,43 @@ const (
 	hostBits = (net.IPv6len - macOffset) * 8
 )
 
-// poolTracker records, per relay /80 prefix, which addresses have been handed
-// out and how often. It keeps the Prometheus gauges in sync. The stateless
-// plugin never persists leases, so "leased" here means "observed since the
-// process started".
+var (
+	poolIPsTotalDesc = prometheus.NewDesc(
+		metrics.Namespace+"_pool_ips_total",
+		"Total number of IP addresses available in a pool.",
+		[]string{"plugin", "prefix"}, nil,
+	)
+	poolIPsLeasedDesc = prometheus.NewDesc(
+		metrics.Namespace+"_pool_ips_leased",
+		"Number of IP addresses with an active (unexpired) lease in a pool.",
+		[]string{"plugin", "prefix"}, nil,
+	)
+)
+
+// poolTracker records, per relay /80 prefix, the active leases and their
+// expiry. It implements prometheus.Collector: expired leases are pruned at
+// scrape time, so the gauges reflect only currently active leases and
+// active-lease state stays bounded by the number of active leases.
+//
+// The DHCP response itself remains a pure function of the request; this
+// bookkeeping exists solely for observability.
 type poolTracker struct {
 	mu    sync.Mutex
-	pools map[string]map[string]float64 // prefix -> ip -> lease count
+	pools map[string]map[string]time.Time // prefix -> ip -> lease expiry
+	now   func() time.Time
 }
 
-var tracker = &poolTracker{
-	pools: make(map[string]map[string]float64),
+var tracker = newPoolTracker()
+
+func newPoolTracker() *poolTracker {
+	return &poolTracker{
+		pools: make(map[string]map[string]time.Time),
+		now:   time.Now,
+	}
+}
+
+func init() {
+	prometheus.MustRegister(tracker)
 }
 
 // prefixString renders the /80 pool identifier of a relay LinkAddr.
@@ -45,8 +73,10 @@ func prefixString(linkAddr net.IP) string {
 	return fmt.Sprintf("%s/%d", p.String(), macOffset*8)
 }
 
-// record accounts for a single address assignment and updates the metrics.
-func (t *poolTracker) record(linkAddr, addr net.IP) {
+// record registers (or refreshes) a lease for addr out of linkAddr's pool,
+// expiring validLifetime from now. Re-requesting an address whose lease is
+// still active refreshes its expiry rather than adding another active lease.
+func (t *poolTracker) record(linkAddr, addr net.IP, validLifetime time.Duration) {
 	prefix := prefixString(linkAddr)
 	ip := addr.String()
 
@@ -55,14 +85,46 @@ func (t *poolTracker) record(linkAddr, addr net.IP) {
 
 	ips, ok := t.pools[prefix]
 	if !ok {
-		ips = make(map[string]float64)
+		ips = make(map[string]time.Time)
 		t.pools[prefix] = ips
-		// A /80 prefix has 2^48 assignable host addresses.
-		metrics.PoolIPsTotal.WithLabelValues(pluginName, prefix).Set(math.Pow(2, hostBits))
 	}
+	ips[ip] = t.now().Add(validLifetime)
+}
 
-	ips[ip]++
+// pruneLocked removes expired leases and drops emptied pools. Callers must hold
+// t.mu.
+func (t *poolTracker) pruneLocked() {
+	now := t.now()
+	for prefix, ips := range t.pools {
+		for ip, expiry := range ips {
+			if !expiry.After(now) {
+				delete(ips, ip)
+			}
+		}
+		if len(ips) == 0 {
+			delete(t.pools, prefix)
+		}
+	}
+}
 
-	metrics.PoolIPsLeased.WithLabelValues(pluginName, prefix).Set(float64(len(ips)))
-	metrics.LeasesPerIP.WithLabelValues(pluginName, prefix, ip).Set(ips[ip])
+// Describe implements prometheus.Collector.
+func (t *poolTracker) Describe(ch chan<- *prometheus.Desc) {
+	ch <- poolIPsTotalDesc
+	ch <- poolIPsLeasedDesc
+}
+
+// Collect implements prometheus.Collector. It prunes expired leases first so
+// the reported gauge values reflect only active leases.
+func (t *poolTracker) Collect(ch chan<- prometheus.Metric) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.pruneLocked()
+
+	// A /80 prefix has 2^48 assignable host addresses.
+	total := math.Pow(2, hostBits)
+	for prefix, ips := range t.pools {
+		ch <- prometheus.MustNewConstMetric(poolIPsTotalDesc, prometheus.GaugeValue, total, pluginName, prefix)
+		ch <- prometheus.MustNewConstMetric(poolIPsLeasedDesc, prometheus.GaugeValue, float64(len(ips)), pluginName, prefix)
+	}
 }

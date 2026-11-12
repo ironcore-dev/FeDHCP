@@ -299,12 +299,11 @@ Scrape `http://<host>:9090/metrics` (or the address you configured).
 The following pool metrics are exported (currently emitted by the `stateless` plugin, where a pool is a relay `/80` prefix):
 
 - `fedhcp_pool_ips_total` (gauge, labels: `plugin`, `prefix`) - total number of IP addresses a pool can hand out. For a `/80` prefix this is the size of the 48-bit host region (`2^48`).
-- `fedhcp_pool_ips_leased` (gauge, labels: `plugin`, `prefix`) - number of distinct IP addresses currently leased from a pool.
-- `fedhcp_leases_per_ip` (gauge, labels: `plugin`, `prefix`, `ip`) - number of leases handed out per IP address.
+- `fedhcp_pool_ips_leased` (gauge, labels: `plugin`, `prefix`) - number of IP addresses with an active (unexpired) lease in a pool.
 
 Notes:
-- the `stateless` plugin does not persist state, so leased counts reflect assignments observed since the process started and reset on restart.
-- the `ip` label on `fedhcp_leases_per_ip` is high cardinality; aggregating or bucketing it is tracked as a follow-up.
+- a lease is considered active until its valid lifetime elapses; expired leases are pruned at scrape time, so active-lease state stays bounded by the number of active leases.
+- the gauges are kept in memory only and reset on restart.
 
 # License
 `FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2026 by *coredhcp* and the *FeDHCP* authors.

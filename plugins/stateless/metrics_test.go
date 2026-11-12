@@ -5,9 +5,11 @@ package stateless
 
 import (
 	"net"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/ironcore-dev/fedhcp/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
@@ -19,33 +21,58 @@ func TestPrefixString(t *testing.T) {
 	}
 }
 
-func TestPoolTrackerRecord(t *testing.T) {
-	// isolated tracker and reset metrics so the test is independent of order
-	tr := &poolTracker{pools: make(map[string]map[string]float64)}
-	metrics.PoolIPsTotal.Reset()
-	metrics.PoolIPsLeased.Reset()
-	metrics.LeasesPerIP.Reset()
+func TestPoolTrackerActiveLeases(t *testing.T) {
+	now := time.Unix(0, 0)
+	tr := newPoolTracker()
+	tr.now = func() time.Time { return now }
 
-	prefix := "2001:db8:1111:2222:3333::/80"
 	linkAddr := net.ParseIP("2001:db8:1111:2222:3333::")
 	ipA := net.ParseIP("2001:db8:1111:2222:3333:aabb:ccdd:eeff")
 	ipB := net.ParseIP("2001:db8:1111:2222:3333:1122:3344:5566")
 
-	// two distinct IPs, one of them leased twice
-	tr.record(linkAddr, ipA)
-	tr.record(linkAddr, ipB)
-	tr.record(linkAddr, ipA)
+	// two distinct active leases; re-requesting ipA must only refresh it
+	tr.record(linkAddr, ipA, time.Hour)
+	tr.record(linkAddr, ipB, time.Hour)
+	tr.record(linkAddr, ipA, time.Hour)
 
-	if got := testutil.ToFloat64(metrics.PoolIPsTotal.WithLabelValues(pluginName, prefix)); got != 281474976710656 {
-		t.Errorf("pool total: got=%v want=2^48", got)
+	expect := func(leased int) {
+		t.Helper()
+		want := `
+# HELP fedhcp_pool_ips_leased Number of IP addresses with an active (unexpired) lease in a pool.
+# TYPE fedhcp_pool_ips_leased gauge
+fedhcp_pool_ips_leased{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} ` + strconv.Itoa(leased) + "\n"
+		if leased == 0 {
+			want = "" // emptied pool emits no series
+		}
+		if err := testutil.CollectAndCompare(tr, strings.NewReader(want), "fedhcp_pool_ips_leased"); err != nil {
+			t.Error(err)
+		}
 	}
-	if got := testutil.ToFloat64(metrics.PoolIPsLeased.WithLabelValues(pluginName, prefix)); got != 2 {
-		t.Errorf("pool leased: got=%v want=2", got)
-	}
-	if got := testutil.ToFloat64(metrics.LeasesPerIP.WithLabelValues(pluginName, prefix, ipA.String())); got != 2 {
-		t.Errorf("leases per ip A: got=%v want=2", got)
-	}
-	if got := testutil.ToFloat64(metrics.LeasesPerIP.WithLabelValues(pluginName, prefix, ipB.String())); got != 1 {
-		t.Errorf("leases per ip B: got=%v want=1", got)
+
+	expect(2)
+
+	// advance past ipB's expiry but keep ipA alive by refreshing it
+	now = now.Add(90 * time.Minute)
+	tr.record(linkAddr, ipA, time.Hour)
+	expect(1)
+
+	// advance past ipA's refreshed expiry: pool empties and disappears
+	now = now.Add(2 * time.Hour)
+	expect(0)
+}
+
+func TestPoolIPsTotal(t *testing.T) {
+	now := time.Unix(0, 0)
+	tr := newPoolTracker()
+	tr.now = func() time.Time { return now }
+	tr.record(net.ParseIP("2001:db8:1111:2222:3333::"), net.ParseIP("2001:db8:1111:2222:3333::1"), time.Hour)
+
+	want := `
+# HELP fedhcp_pool_ips_total Total number of IP addresses available in a pool.
+# TYPE fedhcp_pool_ips_total gauge
+fedhcp_pool_ips_total{plugin="stateless",prefix="2001:db8:1111:2222:3333::/80"} 2.81474976710656e+14
+`
+	if err := testutil.CollectAndCompare(tr, strings.NewReader(want), "fedhcp_pool_ips_total"); err != nil {
+		t.Error(err)
 	}
 }

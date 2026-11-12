@@ -147,7 +147,7 @@ func handler6(req, resp dhcpv6.DHCPv6) (dhcpv6.DHCPv6, bool) {
 		}},
 	}
 	resp.AddOption(iana)
-	tracker.record(linkAddr, addr)
+	tracker.record(linkAddr, addr, validLifeTime)
 	log.Infof("Client %s, added option IA address %s", mac.String(), iana.String())
 
 	return resp, false
