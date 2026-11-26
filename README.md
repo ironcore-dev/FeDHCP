@@ -289,6 +289,30 @@ When no config file is provided, the defaults (24h) are used.
 - IPv6 relays are mandatory
 - the relay's `LinkAddr` must be a valid `/80` prefix (bytes 10-15 must be zero)
 
+# Metrics
+`FeDHCP` always exposes runtime metrics in [Prometheus](https://prometheus.io/) format on a dedicated HTTP listener that serves `/metrics`. By default it binds to `:9090`; change it with the `-metrics-bind-address` flag (interface and/or port):
+```
+fedhcp -config config.yaml -metrics-bind-address 127.0.0.1:9100
+```
+Scrape `http://<host>:9090/metrics` (or the address you configured).
+
+The following metrics are exported (currently emitted by the `stateless` plugin, where a pool is a relay `/80` prefix):
+
+- `fedhcp_pool_ips_leased` (gauge, labels: `plugin`, `prefix`) - number of IP addresses with an active (unexpired) lease in a pool.
+- `fedhcp_leases_total` (counter, labels: `plugin`) - total lease assignments handed out (new leases plus renewals), aggregated across all pools.
+- `fedhcp_renewals_total` (counter, labels: `plugin`) - lease renewals, i.e. re-requests of an address whose lease is still active.
+
+Notes:
+- a lease is considered active until its valid lifetime elapses; expired leases are pruned at scrape time, so `fedhcp_pool_ips_leased` stays bounded by the number of active leases.
+- re-requesting an address after its lease has lapsed counts as a new lease, not a renewal.
+- the counters are aggregated per instance (no `prefix` label) so their cardinality stays bounded even in topologies with one relay prefix per switch port; like the gauge they are in-memory and reset on restart.
+
+For example, the renewal rate and new-lease rate can be derived from the counters:
+```
+rate(fedhcp_renewals_total[5m])
+rate(fedhcp_leases_total[5m]) - rate(fedhcp_renewals_total[5m])
+```
+
 # License
 `FeDHCP` is licensed under [MIT License](LICENSE) - Copyright 2018-2026 by *coredhcp* and the *FeDHCP* authors.
 
